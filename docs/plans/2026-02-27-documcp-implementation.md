@@ -2,6 +2,51 @@
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
+## Progress
+
+| Task | Status | Commit |
+|------|--------|--------|
+| Task 1: Go module + project structure | ✅ Done | `4da1b79`, `14c3e4f` |
+| Task 2: Config types + YAML loading | ✅ Done | `35d4978`, `d130a82` |
+| Task 3: Config file watcher | ✅ Done | `9a24347`, `ce49c1d` |
+| Task 4: SQLite database + schema | ✅ Done | `a631a05`, `d218a4f` |
+| Task 5: FTS5 full-text search | ⏳ Next | — |
+| Task 6: ONNX embedding wrapper | — | — |
+| Task 7: sqlite-vec + vector search + RRF | — | — |
+| Task 8: Hierarchical browse (TOC) | — | — |
+| Task 9: Adapter interface + registry | — | — |
+| Task 10: Web adapter — sitemap parsing | — | — |
+| Task 11: Web adapter — HTML extraction + crawling | — | — |
+| Task 12: GitHub Wiki adapter | — | — |
+| Task 13: Azure DevOps Wiki adapter | — | — |
+| Task 14: Microsoft device code flow | — | — |
+| Task 15: GitHub device code flow | — | — |
+| Task 16: Encrypted token storage | — | — |
+| Task 17: Crawl orchestrator | — | — |
+| Task 18: Cron scheduler | — | — |
+| Task 19: MCP server (4 tools) | — | — |
+| Task 20: REST API for Web UI | — | — |
+| Task 21: Auth flow REST endpoints | — | — |
+| Task 22: Web UI base layout + dark theme | — | — |
+| Task 23: Sources dashboard | — | — |
+| Task 24: Search debug UI | — | — |
+| Task 25: Wire main binary | — | — |
+| Task 26: Dockerfile + docker-compose | — | — |
+| Task 27: Makefile targets | — | — |
+
+**Build notes (discovered during implementation):**
+- Use `CGO_ENABLED=1 go build -tags sqlite_fts5` — FTS5 requires the `sqlite_fts5` build tag
+- Go version on dev machine: 1.26.0
+- Makefile already has the correct flags
+
+**Key patterns established:**
+- Error wrapping: `fmt.Errorf("context: %w", err)` throughout
+- `db.ErrNotFound` sentinel wraps `sql.ErrNoRows` — callers use `errors.Is`
+- FTS5 index kept in sync via SQL triggers (pages_ai, pages_au, pages_ad)
+- `ListSources` returns `make([]Source, 0)` (not nil) for empty results
+
+---
+
 **Goal:** Build a locally-hosted MCP server in Go that indexes documentation from GitHub wikis, Azure DevOps, Confluence, and generic web sources, and exposes them to AI coding assistants via hybrid full-text + semantic search and hierarchical browsing.
 
 **Architecture:** Single Go binary with embedded web UI, SQLite (FTS5 + sqlite-vec) for storage, bundled all-MiniLM-L6-v2 ONNX model for embeddings, and the official MCP Go SDK for the MCP server. Source adapters implement a common interface, auth uses device code flows (no user app registration required).
