@@ -7,5 +7,4 @@ import (
 
 func main() {
 	fmt.Fprintln(os.Stderr, "DocuMcp starting...")
-	os.Exit(0)
 }
