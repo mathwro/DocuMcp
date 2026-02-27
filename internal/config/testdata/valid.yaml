@@ -1,0 +1,15 @@
+server:
+  port: 8080
+  data_dir: /tmp/documcp-test
+
+sources:
+  - name: "Test GitHub Wiki"
+    type: github_wiki
+    repo: "myorg/myrepo"
+    crawl_schedule: "0 0 * * 1"
+
+  - name: "Test Internal Docs"
+    type: web
+    url: "https://docs.example.com"
+    auth: azure_ad
+    crawl_schedule: "0 */6 * * *"
