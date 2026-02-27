@@ -1,0 +1,200 @@
+package db
+
+import (
+	"database/sql"
+	"encoding/json"
+	"fmt"
+	"time"
+
+	_ "github.com/mattn/go-sqlite3"
+)
+
+// Store wraps a SQLite database and exposes DocuMcp data operations.
+type Store struct {
+	db *sql.DB
+}
+
+// Source represents a configured documentation source.
+type Source struct {
+	ID            int64
+	Name          string
+	Type          string
+	URL           string
+	Repo          string
+	BaseURL       string
+	SpaceKey      string
+	Auth          string
+	CrawlSchedule string
+	LastCrawled   *time.Time
+	PageCount     int
+}
+
+// Page represents an indexed documentation page.
+type Page struct {
+	ID       int64
+	SourceID int64
+	URL      string
+	Title    string
+	Content  string
+	Path     []string
+}
+
+// Open opens (or creates) a SQLite database at dsn and applies the schema.
+func Open(dsn string) (*Store, error) {
+	db, err := sql.Open("sqlite3", dsn+"?_foreign_keys=on&_journal_mode=WAL")
+	if err != nil {
+		return nil, fmt.Errorf("open db: %w", err)
+	}
+	if err := db.Ping(); err != nil {
+		return nil, fmt.Errorf("ping db: %w", err)
+	}
+	if _, err := db.Exec(schema); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("apply schema: %w", err)
+	}
+	return &Store{db: db}, nil
+}
+
+// Close closes the underlying database connection.
+func (s *Store) Close() error { return s.db.Close() }
+
+// DB returns the underlying *sql.DB for packages that need direct access (e.g. search).
+func (s *Store) DB() *sql.DB { return s.db }
+
+// InsertSource inserts a new source and returns its ID.
+func (s *Store) InsertSource(src Source) (int64, error) {
+	res, err := s.db.Exec(
+		`INSERT INTO sources (name, type, url, repo, base_url, space_key, auth, crawl_schedule)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		src.Name, src.Type, src.URL, src.Repo, src.BaseURL, src.SpaceKey, src.Auth, src.CrawlSchedule,
+	)
+	if err != nil {
+		return 0, fmt.Errorf("insert source: %w", err)
+	}
+	return res.LastInsertId()
+}
+
+// ListSources returns all configured sources.
+func (s *Store) ListSources() ([]Source, error) {
+	rows, err := s.db.Query(
+		`SELECT id, name, type, url, repo, base_url, space_key, auth, crawl_schedule, page_count
+		 FROM sources ORDER BY id`,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list sources: %w", err)
+	}
+	defer rows.Close()
+
+	var sources []Source
+	for rows.Next() {
+		var src Source
+		if err := rows.Scan(
+			&src.ID, &src.Name, &src.Type, &src.URL, &src.Repo,
+			&src.BaseURL, &src.SpaceKey, &src.Auth, &src.CrawlSchedule, &src.PageCount,
+		); err != nil {
+			return nil, fmt.Errorf("scan source: %w", err)
+		}
+		sources = append(sources, src)
+	}
+	return sources, rows.Err()
+}
+
+// GetSource returns a single source by ID.
+func (s *Store) GetSource(id int64) (*Source, error) {
+	var src Source
+	err := s.db.QueryRow(
+		`SELECT id, name, type, url, repo, base_url, space_key, auth, crawl_schedule, page_count
+		 FROM sources WHERE id = ?`, id,
+	).Scan(
+		&src.ID, &src.Name, &src.Type, &src.URL, &src.Repo,
+		&src.BaseURL, &src.SpaceKey, &src.Auth, &src.CrawlSchedule, &src.PageCount,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("get source %d: %w", id, err)
+	}
+	return &src, nil
+}
+
+// GetSourceIDByName returns the ID of a source with the given name.
+func (s *Store) GetSourceIDByName(name string) (int64, error) {
+	var id int64
+	err := s.db.QueryRow(`SELECT id FROM sources WHERE name = ?`, name).Scan(&id)
+	if err != nil {
+		return 0, fmt.Errorf("get source by name %q: %w", name, err)
+	}
+	return id, nil
+}
+
+// DeleteSource deletes a source and all its pages (cascade).
+func (s *Store) DeleteSource(id int64) error {
+	_, err := s.db.Exec(`DELETE FROM sources WHERE id = ?`, id)
+	return err
+}
+
+// UpdateSourcePageCount updates the page_count for a source.
+func (s *Store) UpdateSourcePageCount(id int64, count int) error {
+	_, err := s.db.Exec(
+		`UPDATE sources SET page_count = ?, last_crawled = CURRENT_TIMESTAMP WHERE id = ?`,
+		count, id,
+	)
+	return err
+}
+
+// UpsertPage inserts or updates a page by URL.
+func (s *Store) UpsertPage(p Page) error {
+	pathJSON, err := json.Marshal(p.Path)
+	if err != nil {
+		return fmt.Errorf("marshal path: %w", err)
+	}
+	_, err = s.db.Exec(
+		`INSERT INTO pages (source_id, url, title, content, path)
+		 VALUES (?, ?, ?, ?, ?)
+		 ON CONFLICT(url) DO UPDATE SET
+		   title     = excluded.title,
+		   content   = excluded.content,
+		   path      = excluded.path,
+		   updated_at = CURRENT_TIMESTAMP`,
+		p.SourceID, p.URL, p.Title, p.Content, string(pathJSON),
+	)
+	return err
+}
+
+// GetPageByURL returns a page by its URL.
+func (s *Store) GetPageByURL(url string) (*Page, error) {
+	var p Page
+	var pathJSON string
+	err := s.db.QueryRow(
+		`SELECT id, source_id, url, title, content, path FROM pages WHERE url = ?`, url,
+	).Scan(&p.ID, &p.SourceID, &p.URL, &p.Title, &p.Content, &pathJSON)
+	if err != nil {
+		return nil, fmt.Errorf("get page %q: %w", url, err)
+	}
+	if err := json.Unmarshal([]byte(pathJSON), &p.Path); err != nil {
+		return nil, fmt.Errorf("unmarshal path: %w", err)
+	}
+	return &p, nil
+}
+
+// UpsertToken stores encrypted token data for a source+provider pair.
+func (s *Store) UpsertToken(sourceID int64, provider string, data []byte, expiresAt time.Time) error {
+	_, err := s.db.Exec(
+		`INSERT INTO tokens (source_id, provider, data, expires_at)
+		 VALUES (?, ?, ?, ?)
+		 ON CONFLICT(source_id, provider) DO UPDATE SET
+		   data = excluded.data, expires_at = excluded.expires_at`,
+		sourceID, provider, data, expiresAt,
+	)
+	return err
+}
+
+// GetToken retrieves encrypted token data for a source+provider pair.
+func (s *Store) GetToken(sourceID int64, provider string) ([]byte, error) {
+	var data []byte
+	err := s.db.QueryRow(
+		`SELECT data FROM tokens WHERE source_id = ? AND provider = ?`, sourceID, provider,
+	).Scan(&data)
+	if err != nil {
+		return nil, fmt.Errorf("get token: %w", err)
+	}
+	return data, nil
+}
