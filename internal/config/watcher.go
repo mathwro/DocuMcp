@@ -2,6 +2,7 @@ package config
 
 import (
 	"log/slog"
+	"sync"
 
 	"github.com/fsnotify/fsnotify"
 )
@@ -9,6 +10,7 @@ import (
 // Watcher watches a config file for changes and calls onChange with the new config.
 type Watcher struct {
 	fsw *fsnotify.Watcher
+	wg  sync.WaitGroup
 }
 
 // Watch starts watching path. On each write event, loads the config and calls onChange.
@@ -22,7 +24,10 @@ func Watch(path string, onChange func(*Config)) (*Watcher, error) {
 		fsw.Close()
 		return nil, err
 	}
+	w := &Watcher{fsw: fsw}
+	w.wg.Add(1)
 	go func() {
+		defer w.wg.Done()
 		for {
 			select {
 			case event, ok := <-fsw.Events:
@@ -32,7 +37,7 @@ func Watch(path string, onChange func(*Config)) (*Watcher, error) {
 				if event.Has(fsnotify.Write) || event.Has(fsnotify.Create) {
 					cfg, err := Load(path)
 					if err != nil {
-						slog.Error("reload config", "err", err)
+						slog.Error("reload config", "path", path, "err", err)
 						continue
 					}
 					onChange(cfg)
@@ -45,10 +50,11 @@ func Watch(path string, onChange func(*Config)) (*Watcher, error) {
 			}
 		}
 	}()
-	return &Watcher{fsw: fsw}, nil
+	return w, nil
 }
 
-// Stop shuts down the watcher. Safe to call multiple times.
+// Stop shuts down the watcher and waits for the goroutine to exit.
 func (w *Watcher) Stop() {
 	w.fsw.Close()
+	w.wg.Wait()
 }

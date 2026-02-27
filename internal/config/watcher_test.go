@@ -43,7 +43,9 @@ func TestWatcher_CallsCallbackOnChange(t *testing.T) {
 func TestWatcher_StopPreventsCallbacks(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.yaml")
-	os.WriteFile(path, []byte("server:\n  port: 8080\nsources: []\n"), 0644)
+	if err := os.WriteFile(path, []byte("server:\n  port: 8080\nsources: []\n"), 0644); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
 
 	called := make(chan struct{}, 1)
 	w, err := config.Watch(path, func(_ *config.Config) {
@@ -53,10 +55,12 @@ func TestWatcher_StopPreventsCallbacks(t *testing.T) {
 		t.Fatalf("Watch error: %v", err)
 	}
 
-	w.Stop()
+	w.Stop() // Now synchronous — goroutine has fully exited before this returns
 
 	// Write after stop — callback should NOT be called
-	os.WriteFile(path, []byte("server:\n  port: 1111\nsources: []\n"), 0644)
+	if err := os.WriteFile(path, []byte("server:\n  port: 1111\nsources: []\n"), 0644); err != nil {
+		t.Fatalf("write updated config: %v", err)
+	}
 
 	select {
 	case <-called:
