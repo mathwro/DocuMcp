@@ -1,7 +1,9 @@
 package db_test
 
 import (
+	"errors"
 	"testing"
+	"time"
 
 	"github.com/documcp/documcp/internal/db"
 )
@@ -90,9 +92,16 @@ func TestUpsertPage_UpdatesOnConflict(t *testing.T) {
 	}
 	defer store.Close()
 
-	srcID, _ := store.InsertSource(db.Source{Name: "S", Type: "web"})
-	store.UpsertPage(db.Page{SourceID: srcID, URL: "https://example.com/p", Title: "Old Title", Content: "old"})
-	store.UpsertPage(db.Page{SourceID: srcID, URL: "https://example.com/p", Title: "New Title", Content: "new"})
+	srcID, err := store.InsertSource(db.Source{Name: "S", Type: "web"})
+	if err != nil {
+		t.Fatalf("InsertSource: %v", err)
+	}
+	if err := store.UpsertPage(db.Page{SourceID: srcID, URL: "https://example.com/p", Title: "Old Title", Content: "old"}); err != nil {
+		t.Fatalf("UpsertPage (first): %v", err)
+	}
+	if err := store.UpsertPage(db.Page{SourceID: srcID, URL: "https://example.com/p", Title: "New Title", Content: "new"}); err != nil {
+		t.Fatalf("UpsertPage (second): %v", err)
+	}
 
 	page, err := store.GetPageByURL("https://example.com/p")
 	if err != nil {
@@ -110,11 +119,17 @@ func TestDeleteSource(t *testing.T) {
 	}
 	defer store.Close()
 
-	id, _ := store.InsertSource(db.Source{Name: "S", Type: "web"})
+	id, err := store.InsertSource(db.Source{Name: "S", Type: "web"})
+	if err != nil {
+		t.Fatalf("InsertSource: %v", err)
+	}
 	if err := store.DeleteSource(id); err != nil {
 		t.Fatalf("DeleteSource: %v", err)
 	}
-	sources, _ := store.ListSources()
+	sources, err := store.ListSources()
+	if err != nil {
+		t.Fatalf("ListSources: %v", err)
+	}
 	if len(sources) != 0 {
 		t.Errorf("expected 0 sources after delete, got %d", len(sources))
 	}
@@ -127,12 +142,103 @@ func TestUpdateSourcePageCount(t *testing.T) {
 	}
 	defer store.Close()
 
-	id, _ := store.InsertSource(db.Source{Name: "S", Type: "web"})
+	id, err := store.InsertSource(db.Source{Name: "S", Type: "web"})
+	if err != nil {
+		t.Fatalf("InsertSource: %v", err)
+	}
 	if err := store.UpdateSourcePageCount(id, 42); err != nil {
 		t.Fatalf("UpdateSourcePageCount: %v", err)
 	}
-	sources, _ := store.ListSources()
+	sources, err := store.ListSources()
+	if err != nil {
+		t.Fatalf("ListSources: %v", err)
+	}
 	if sources[0].PageCount != 42 {
 		t.Errorf("expected page_count 42, got %d", sources[0].PageCount)
+	}
+}
+
+func TestGetSource(t *testing.T) {
+	store, err := db.Open(":memory:")
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer store.Close()
+
+	id, err := store.InsertSource(db.Source{Name: "Test", Type: "web", URL: "https://example.com"})
+	if err != nil {
+		t.Fatalf("InsertSource: %v", err)
+	}
+
+	src, err := store.GetSource(id)
+	if err != nil {
+		t.Fatalf("GetSource: %v", err)
+	}
+	if src.Name != "Test" {
+		t.Errorf("expected 'Test', got %q", src.Name)
+	}
+}
+
+func TestGetSourceIDByName(t *testing.T) {
+	store, err := db.Open(":memory:")
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer store.Close()
+
+	id, err := store.InsertSource(db.Source{Name: "Named Source", Type: "web"})
+	if err != nil {
+		t.Fatalf("InsertSource: %v", err)
+	}
+
+	gotID, err := store.GetSourceIDByName("Named Source")
+	if err != nil {
+		t.Fatalf("GetSourceIDByName: %v", err)
+	}
+	if gotID != id {
+		t.Errorf("expected id %d, got %d", id, gotID)
+	}
+}
+
+func TestUpsertAndGetToken(t *testing.T) {
+	store, err := db.Open(":memory:")
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer store.Close()
+
+	srcID, err := store.InsertSource(db.Source{Name: "S", Type: "web"})
+	if err != nil {
+		t.Fatalf("InsertSource: %v", err)
+	}
+
+	tokenData := []byte("encrypted-token-data")
+	expiresAt := time.Now().Add(time.Hour)
+	if err := store.UpsertToken(srcID, "microsoft", tokenData, expiresAt); err != nil {
+		t.Fatalf("UpsertToken: %v", err)
+	}
+
+	data, err := store.GetToken(srcID, "microsoft")
+	if err != nil {
+		t.Fatalf("GetToken: %v", err)
+	}
+	if string(data) != string(tokenData) {
+		t.Errorf("expected %q, got %q", tokenData, data)
+	}
+}
+
+func TestGetPageByURL_NotFound(t *testing.T) {
+	store, err := db.Open(":memory:")
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer store.Close()
+
+	_, err = store.GetPageByURL("https://nonexistent.example.com")
+	if err == nil {
+		t.Fatal("expected error for nonexistent URL, got nil")
+	}
+	if !errors.Is(err, db.ErrNotFound) {
+		t.Errorf("expected ErrNotFound, got: %v", err)
 	}
 }

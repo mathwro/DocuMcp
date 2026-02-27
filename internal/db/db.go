@@ -3,11 +3,15 @@ package db
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
 	_ "github.com/mattn/go-sqlite3"
 )
+
+// ErrNotFound is returned when a requested record does not exist.
+var ErrNotFound = errors.New("not found")
 
 // Store wraps a SQLite database and exposes DocuMcp data operations.
 type Store struct {
@@ -85,7 +89,7 @@ func (s *Store) ListSources() ([]Source, error) {
 	}
 	defer rows.Close()
 
-	var sources []Source
+	sources := make([]Source, 0)
 	for rows.Next() {
 		var src Source
 		if err := rows.Scan(
@@ -109,6 +113,9 @@ func (s *Store) GetSource(id int64) (*Source, error) {
 		&src.ID, &src.Name, &src.Type, &src.URL, &src.Repo,
 		&src.BaseURL, &src.SpaceKey, &src.Auth, &src.CrawlSchedule, &src.PageCount,
 	)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, fmt.Errorf("source %d: %w", id, ErrNotFound)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("get source %d: %w", id, err)
 	}
@@ -119,6 +126,9 @@ func (s *Store) GetSource(id int64) (*Source, error) {
 func (s *Store) GetSourceIDByName(name string) (int64, error) {
 	var id int64
 	err := s.db.QueryRow(`SELECT id FROM sources WHERE name = ?`, name).Scan(&id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, fmt.Errorf("source %q: %w", name, ErrNotFound)
+	}
 	if err != nil {
 		return 0, fmt.Errorf("get source by name %q: %w", name, err)
 	}
@@ -128,7 +138,10 @@ func (s *Store) GetSourceIDByName(name string) (int64, error) {
 // DeleteSource deletes a source and all its pages (cascade).
 func (s *Store) DeleteSource(id int64) error {
 	_, err := s.db.Exec(`DELETE FROM sources WHERE id = ?`, id)
-	return err
+	if err != nil {
+		return fmt.Errorf("delete source %d: %w", id, err)
+	}
+	return nil
 }
 
 // UpdateSourcePageCount updates the page_count for a source.
@@ -137,7 +150,10 @@ func (s *Store) UpdateSourcePageCount(id int64, count int) error {
 		`UPDATE sources SET page_count = ?, last_crawled = CURRENT_TIMESTAMP WHERE id = ?`,
 		count, id,
 	)
-	return err
+	if err != nil {
+		return fmt.Errorf("update source page count %d: %w", id, err)
+	}
+	return nil
 }
 
 // UpsertPage inserts or updates a page by URL.
@@ -156,7 +172,10 @@ func (s *Store) UpsertPage(p Page) error {
 		   updated_at = CURRENT_TIMESTAMP`,
 		p.SourceID, p.URL, p.Title, p.Content, string(pathJSON),
 	)
-	return err
+	if err != nil {
+		return fmt.Errorf("upsert page %q: %w", p.URL, err)
+	}
+	return nil
 }
 
 // GetPageByURL returns a page by its URL.
@@ -166,6 +185,9 @@ func (s *Store) GetPageByURL(url string) (*Page, error) {
 	err := s.db.QueryRow(
 		`SELECT id, source_id, url, title, content, path FROM pages WHERE url = ?`, url,
 	).Scan(&p.ID, &p.SourceID, &p.URL, &p.Title, &p.Content, &pathJSON)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, fmt.Errorf("page %q: %w", url, ErrNotFound)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("get page %q: %w", url, err)
 	}
@@ -184,7 +206,10 @@ func (s *Store) UpsertToken(sourceID int64, provider string, data []byte, expire
 		   data = excluded.data, expires_at = excluded.expires_at`,
 		sourceID, provider, data, expiresAt,
 	)
-	return err
+	if err != nil {
+		return fmt.Errorf("upsert token (source=%d, provider=%s): %w", sourceID, provider, err)
+	}
+	return nil
 }
 
 // GetToken retrieves encrypted token data for a source+provider pair.
