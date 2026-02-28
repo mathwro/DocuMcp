@@ -1,6 +1,7 @@
 package web
 
 import (
+	"context"
 	"encoding/xml"
 	"fmt"
 	"net/http"
@@ -14,11 +15,15 @@ type urlSet struct {
 
 // ParseSitemap fetches and parses an XML sitemap, returning all URLs.
 // If client is nil, http.DefaultClient is used.
-func ParseSitemap(sitemapURL string, client *http.Client) ([]string, error) {
+func ParseSitemap(ctx context.Context, sitemapURL string, client *http.Client) ([]string, error) {
 	if client == nil {
 		client = http.DefaultClient
 	}
-	resp, err := client.Get(sitemapURL)
+	req, err := http.NewRequestWithContext(ctx, "GET", sitemapURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("build sitemap request: %w", err)
+	}
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("fetch sitemap: %w", err)
 	}

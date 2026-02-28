@@ -83,7 +83,7 @@ func (a *AzureDevOpsAdapter) Crawl(ctx context.Context, src config.SourceConfig,
 			default:
 			}
 
-			content, err := fetchPageContent(client, ctx, apiBase, item.Path, token)
+			content, err := fetchPageContent(ctx, client, apiBase, item.Path, token)
 			if err != nil {
 				slog.Warn("azuredevops: fetch page content", "path", item.Path, "err", err)
 				continue
@@ -111,7 +111,7 @@ func (a *AzureDevOpsAdapter) Crawl(ctx context.Context, src config.SourceConfig,
 }
 
 // fetchPageContent retrieves the markdown content of a single wiki page.
-func fetchPageContent(client *http.Client, ctx context.Context, apiBase, path, token string) (string, error) {
+func fetchPageContent(ctx context.Context, client *http.Client, apiBase, path, token string) (string, error) {
 	pageURL := fmt.Sprintf("%s/pages?api-version=7.1&path=%s", apiBase, url.QueryEscape(path))
 	req, err := http.NewRequestWithContext(ctx, "GET", pageURL, nil)
 	if err != nil {

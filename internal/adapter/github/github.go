@@ -85,7 +85,7 @@ func (a *GitHubAdapter) Crawl(ctx context.Context, src config.SourceConfig, sour
 				continue
 			}
 
-			content, err := fetchBlobContent(client, ctx, item.URL, token)
+			content, err := fetchBlobContent(ctx, client, item.URL, token)
 			if err != nil {
 				slog.Warn("github: fetch blob", "path", item.Path, "err", err)
 				continue
@@ -105,7 +105,7 @@ func (a *GitHubAdapter) Crawl(ctx context.Context, src config.SourceConfig, sour
 }
 
 // fetchBlobContent retrieves and decodes the content of a single GitHub blob.
-func fetchBlobContent(client *http.Client, ctx context.Context, blobURL, token string) (string, error) {
+func fetchBlobContent(ctx context.Context, client *http.Client, blobURL, token string) (string, error) {
 	req, err := http.NewRequestWithContext(ctx, "GET", blobURL, nil)
 	if err != nil {
 		return "", fmt.Errorf("build blob request: %w", err)

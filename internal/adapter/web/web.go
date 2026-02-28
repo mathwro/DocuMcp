@@ -3,6 +3,7 @@ package web
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
@@ -33,13 +34,17 @@ func (a *WebAdapter) Crawl(ctx context.Context, src config.SourceConfig, sourceI
 	go func() {
 		defer close(ch)
 		sitemapURL := strings.TrimRight(src.URL, "/") + "/sitemap.xml"
-		urls, err := ParseSitemap(sitemapURL, client)
+		urls, err := ParseSitemap(ctx, sitemapURL, client)
 		if err != nil || len(urls) == 0 {
 			// Fallback: just crawl the root URL
 			urls = []string{src.URL}
 		}
 
-		base, _ := url.Parse(src.URL)
+		base, err := url.Parse(src.URL)
+		if err != nil {
+			slog.Error("web: parse base URL", "url", src.URL, "err", err)
+			return
+		}
 		visited := map[string]bool{}
 
 		for _, pageURL := range urls {
@@ -53,8 +58,9 @@ func (a *WebAdapter) Crawl(ctx context.Context, src config.SourceConfig, sourceI
 			}
 			visited[pageURL] = true
 
-			page, err := fetchPage(client, pageURL, sourceID, base)
+			page, err := fetchPage(ctx, client, pageURL, sourceID, base)
 			if err != nil {
+				slog.Warn("web: fetch page", "url", pageURL, "err", err)
 				continue
 			}
 			ch <- page
@@ -63,8 +69,12 @@ func (a *WebAdapter) Crawl(ctx context.Context, src config.SourceConfig, sourceI
 	return ch, nil
 }
 
-func fetchPage(client *http.Client, pageURL string, sourceID int64, base *url.URL) (db.Page, error) {
-	resp, err := client.Get(pageURL)
+func fetchPage(ctx context.Context, client *http.Client, pageURL string, sourceID int64, base *url.URL) (db.Page, error) {
+	req, err := http.NewRequestWithContext(ctx, "GET", pageURL, nil)
+	if err != nil {
+		return db.Page{}, fmt.Errorf("build request for %s: %w", pageURL, err)
+	}
+	resp, err := client.Do(req)
 	if err != nil {
 		return db.Page{}, fmt.Errorf("fetch %s: %w", pageURL, err)
 	}

@@ -1,6 +1,7 @@
 package web_test
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -19,7 +20,7 @@ func TestParseSitemap(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	urls, err := web.ParseSitemap(srv.URL+"/sitemap.xml", nil)
+	urls, err := web.ParseSitemap(context.Background(), srv.URL+"/sitemap.xml", nil)
 	if err != nil {
 		t.Fatalf("ParseSitemap: %v", err)
 	}
@@ -34,7 +35,7 @@ func TestParseSitemap_NonOK(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	_, err := web.ParseSitemap(srv.URL+"/sitemap.xml", nil)
+	_, err := web.ParseSitemap(context.Background(), srv.URL+"/sitemap.xml", nil)
 	if err == nil {
 		t.Fatal("expected error for non-200 response, got nil")
 	}
@@ -47,7 +48,7 @@ func TestParseSitemap_Empty(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	urls, err := web.ParseSitemap(srv.URL+"/sitemap.xml", nil)
+	urls, err := web.ParseSitemap(context.Background(), srv.URL+"/sitemap.xml", nil)
 	if err != nil {
 		t.Fatalf("ParseSitemap: %v", err)
 	}
