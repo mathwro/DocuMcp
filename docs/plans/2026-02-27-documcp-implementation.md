@@ -30,9 +30,9 @@
 | Task 22: Web UI base layout + dark theme | ✅ Done | `a62e7bc` |
 | Task 23: Sources dashboard | ✅ Done | `a62e7bc` |
 | Task 24: Search debug UI | ✅ Done | `a62e7bc`, `f86e74b` |
-| Task 25: Wire main binary | ⏳ Next | — |
-| Task 26: Dockerfile + docker-compose | — | — |
-| Task 27: Makefile targets | — | — |
+| Task 25: Wire main binary | ✅ Done | `8157541`, `87a52c9` |
+| Task 26: Dockerfile + docker-compose | ✅ Done | `da2b698`, `e002a49` |
+| Task 27: Makefile targets | ✅ Done | `1196273`, `4a08cff` |
 
 **Build notes (discovered during implementation):**
 - Use `CGO_ENABLED=1 go build -tags sqlite_fts5` — FTS5 requires the `sqlite_fts5` build tag
