@@ -24,9 +24,11 @@ require (
 	github.com/gomlx/go-xla v0.1.4 // indirect
 	github.com/gomlx/gomlx v0.26.0 // indirect
 	github.com/gomlx/onnx-gomlx v0.3.4 // indirect
+	github.com/google/jsonschema-go v0.3.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/knights-analytics/ortgenai v0.1.0 // indirect
 	github.com/mitchellh/colorstring v0.0.0-20190213212951-d06e56a500db // indirect
+	github.com/modelcontextprotocol/go-sdk v0.8.0 // indirect
 	github.com/patrickmn/go-cache v2.1.0+incompatible // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
@@ -36,6 +38,7 @@ require (
 	github.com/viant/afs v1.30.0 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	github.com/yalue/onnxruntime_go v1.26.0 // indirect
+	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
 	golang.org/x/crypto v0.48.0 // indirect
 	golang.org/x/exp v0.0.0-20260218203240-3dfff04db8fa // indirect
 	golang.org/x/image v0.36.0 // indirect
