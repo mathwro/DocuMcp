@@ -261,7 +261,7 @@ func (s *Server) authPoll(w http.ResponseWriter, r *http.Request) {
 	if pollErr != nil {
 		// A context deadline exceeded means the poll interval elapsed without a
 		// response — the user simply hasn't completed the flow yet.
-		if errors.Is(pollErr, context.DeadlineExceeded) {
+		if errors.Is(pollErr, context.DeadlineExceeded) || errors.Is(pollErr, context.Canceled) {
 			writeJSON(w, http.StatusAccepted, map[string]string{"status": "pending"})
 			return
 		}
@@ -312,13 +312,16 @@ func (s *Server) authRevoke(w http.ResponseWriter, r *http.Request) {
 	delete(s.pendingFlows, id)
 	s.flowMu.Unlock()
 
-	// Delete tokens for both possible providers — ignore "not found" for each.
+	// Delete tokens for both possible providers. A real SQL error returns 500;
+	// a no-op delete (row never existed) is fine and returns nil from DeleteToken.
 	for _, provider := range []string{"microsoft", "github"} {
 		if err := s.store.DeleteToken(id, provider); err != nil {
 			slog.Error("delete token", "source_id", id, "provider", provider, "err", err)
+			writeError(w, http.StatusInternalServerError, fmt.Errorf("delete token: %w", err).Error())
+			return
 		}
 	}
 
-	slog.Info("auth revoke: tokens deleted", "source_id", id)
+	slog.Info("auth revoke: completed", "source_id", id)
 	w.WriteHeader(http.StatusNoContent)
 }

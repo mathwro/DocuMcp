@@ -220,11 +220,15 @@ func (s *Store) UpsertToken(sourceID int64, provider string, data []byte, expire
 }
 
 // GetToken retrieves encrypted token data for a source+provider pair.
+// Returns ErrNotFound if no token exists for the given source+provider.
 func (s *Store) GetToken(sourceID int64, provider string) ([]byte, error) {
 	var data []byte
 	err := s.db.QueryRow(
 		`SELECT data FROM tokens WHERE source_id = ? AND provider = ?`, sourceID, provider,
 	).Scan(&data)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrNotFound
+	}
 	if err != nil {
 		return nil, fmt.Errorf("get token: %w", err)
 	}
