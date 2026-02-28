@@ -8,7 +8,7 @@
   <script defer src="https://unpkg.com/alpinejs@3/dist/cdn.min.js"></script>
   <script defer src="/app.js"></script>
 </head>
-<body x-data="app()" x-init="init()">
+<body x-data="app()">
   <nav class="sidebar">
     <div class="logo">DocuMcp</div>
     <a href="#" @click.prevent="view='sources'" :class="{active: view==='sources'}">Sources</a>
@@ -53,8 +53,8 @@
         <h2>Authenticate</h2>
         <p class="muted" style="margin:0.5rem 0">Visit the URL below and enter the code to connect:</p>
         <div class="device-code-box">
-          <p><a :href="deviceCodePending?.VerificationURI" target="_blank" x-text="deviceCodePending?.VerificationURI" style="color:var(--accent)"></a></p>
-          <div class="device-code" x-text="deviceCodePending?.UserCode"></div>
+          <p><a :href="deviceCodePending?.verification_uri" target="_blank" x-text="deviceCodePending?.verification_uri" style="color:var(--accent)"></a></p>
+          <div class="device-code" x-text="deviceCodePending?.user_code"></div>
         </div>
         <div class="actions" style="margin-top:1rem">
           <button class="secondary" @click="cancelAuth(deviceCodePending?.sourceId)">Cancel</button>

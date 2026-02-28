@@ -4,7 +4,7 @@ function app() {
     sources: [],
     showAddForm: false,
     newSource: { Name: '', Type: 'web', URL: '', Repo: '', CrawlSchedule: '' },
-    deviceCodePending: null, // { UserCode, VerificationURI, DeviceCode, ExpiresIn }
+    deviceCodePending: null, // { user_code, verification_uri, device_code, expires_in, sourceId }
     pollInterval: null,
 
     // Search state
