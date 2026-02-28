@@ -1,0 +1,84 @@
+package search_test
+
+import (
+	"fmt"
+	"testing"
+
+	"github.com/documcp/documcp/internal/db"
+	"github.com/documcp/documcp/internal/search"
+)
+
+func setupTestDB(t *testing.T) *db.Store {
+	t.Helper()
+	store, err := db.Open(":memory:")
+	if err != nil {
+		t.Fatalf("db.Open: %v", err)
+	}
+	t.Cleanup(func() { store.Close() })
+	return store
+}
+
+func TestFTS_ReturnsRelevantResults(t *testing.T) {
+	store := setupTestDB(t)
+	srcID, err := store.InsertSource(db.Source{Name: "S", Type: "web"})
+	if err != nil {
+		t.Fatalf("InsertSource: %v", err)
+	}
+
+	pages := []db.Page{
+		{SourceID: srcID, URL: "u1", Title: "OAuth Setup", Content: "How to configure OAuth authentication and authorization flows"},
+		{SourceID: srcID, URL: "u2", Title: "Docker Guide", Content: "Running containers with Docker and docker-compose"},
+		{SourceID: srcID, URL: "u3", Title: "Database Schema", Content: "PostgreSQL schema design and migration strategies"},
+	}
+	for _, p := range pages {
+		if err := store.UpsertPage(p); err != nil {
+			t.Fatalf("UpsertPage: %v", err)
+		}
+	}
+
+	results, err := search.FTS(store, "OAuth authentication", 10)
+	if err != nil {
+		t.Fatalf("FTS: %v", err)
+	}
+	if len(results) == 0 {
+		t.Fatal("expected results, got none")
+	}
+	if results[0].URL != "u1" {
+		t.Errorf("expected OAuth page first, got %q", results[0].URL)
+	}
+}
+
+func TestFTS_ReturnsEmptyForNoMatch(t *testing.T) {
+	store := setupTestDB(t)
+	srcID, _ := store.InsertSource(db.Source{Name: "S", Type: "web"})
+	store.UpsertPage(db.Page{SourceID: srcID, URL: "u1", Title: "Docker Guide", Content: "Running containers"})
+
+	results, err := search.FTS(store, "kubernetes helm charts", 10)
+	if err != nil {
+		t.Fatalf("FTS: %v", err)
+	}
+	if len(results) != 0 {
+		t.Errorf("expected no results, got %d", len(results))
+	}
+}
+
+func TestFTS_RespectsLimit(t *testing.T) {
+	store := setupTestDB(t)
+	srcID, _ := store.InsertSource(db.Source{Name: "S", Type: "web"})
+	for i := 0; i < 5; i++ {
+		store.UpsertPage(db.Page{
+			SourceID: srcID,
+			URL:      fmt.Sprintf("u%d", i),
+			Title:    "Authentication Guide",
+			Content:  "OAuth authentication configuration",
+		})
+	}
+
+	results, err := search.FTS(store, "authentication", 3)
+	if err != nil {
+		t.Fatalf("FTS: %v", err)
+	}
+	if len(results) > 3 {
+		t.Errorf("expected at most 3 results, got %d", len(results))
+	}
+}
