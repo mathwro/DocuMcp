@@ -101,21 +101,25 @@ func (s *Server) handleSearchDocs(_ context.Context, req *sdkmcp.CallToolRequest
 		return toolError("query is required")
 	}
 
-	const limit = 10
+	const finalLimit = 10
+	fetchLimit := finalLimit
+	if args.Source != "" {
+		fetchLimit = finalLimit * 10 // over-fetch so source filter has enough candidates
+	}
 
-	ftsResults, err := search.FTS(s.store, args.Query, limit)
+	ftsResults, err := search.FTS(s.store, args.Query, fetchLimit)
 	if err != nil {
 		return toolError(fmt.Sprintf("fts search: %v", err))
 	}
 
-	semResults, err := search.Semantic(s.store, s.embedder, args.Query, limit)
+	semResults, err := search.Semantic(s.store, s.embedder, args.Query, fetchLimit)
 	if err != nil {
 		// Semantic search failure is non-fatal — log and continue with FTS only.
 		slog.Warn("semantic search failed, falling back to FTS only", "err", err)
 		semResults = nil
 	}
 
-	results := search.MergeRRF(ftsResults, semResults, limit)
+	results := search.MergeRRF(ftsResults, semResults, fetchLimit)
 
 	// Optionally filter by source name.
 	if args.Source != "" {
@@ -133,6 +137,13 @@ func (s *Server) handleSearchDocs(_ context.Context, req *sdkmcp.CallToolRequest
 			}
 		}
 		results = filtered
+		if len(results) > finalLimit {
+			results = results[:finalLimit]
+		}
+	}
+
+	if len(results) > finalLimit {
+		results = results[:finalLimit]
 	}
 
 	data, err := json.Marshal(results)

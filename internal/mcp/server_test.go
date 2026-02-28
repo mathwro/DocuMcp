@@ -3,7 +3,6 @@ package mcp_test
 import (
 	"context"
 	"encoding/json"
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -155,5 +154,3 @@ func TestBrowseSourceNotFound(t *testing.T) {
 	}
 }
 
-// Ensure there are no unused import issues when running without a real model.
-var _ = os.DevNull
