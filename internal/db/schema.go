@@ -65,4 +65,9 @@ CREATE TABLE IF NOT EXISTS crawl_jobs (
     pages_crawled  INTEGER NOT NULL DEFAULT 0,
     error          TEXT
 );
+
+CREATE VIRTUAL TABLE IF NOT EXISTS page_embeddings USING vec0(
+    page_id INTEGER PRIMARY KEY,
+    embedding FLOAT[384]
+);
 `

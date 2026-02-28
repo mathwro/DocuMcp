@@ -2,13 +2,20 @@ package db
 
 import (
 	"database/sql"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"time"
 
+	vec "github.com/asg017/sqlite-vec-go-bindings/cgo"
 	_ "github.com/mattn/go-sqlite3"
 )
+
+func init() {
+	vec.Auto() // registers the sqlite-vec extension for all new connections
+}
 
 // ErrNotFound is returned when a requested record does not exist.
 var ErrNotFound = errors.New("not found")
@@ -222,4 +229,27 @@ func (s *Store) GetToken(sourceID int64, provider string) ([]byte, error) {
 		return nil, fmt.Errorf("get token: %w", err)
 	}
 	return data, nil
+}
+
+// Float32ToBlob serialises a float32 slice as little-endian bytes for sqlite-vec.
+// Exported so the search package can use it for query vectors too.
+func Float32ToBlob(v []float32) []byte {
+	b := make([]byte, len(v)*4)
+	for i, f := range v {
+		bits := math.Float32bits(f)
+		binary.LittleEndian.PutUint32(b[i*4:], bits)
+	}
+	return b
+}
+
+// UpsertEmbedding inserts or replaces the embedding vector for a page.
+func (s *Store) UpsertEmbedding(pageID int64, embedding []float32) error {
+	_, err := s.db.Exec(
+		`INSERT OR REPLACE INTO page_embeddings(page_id, embedding) VALUES (?, ?)`,
+		pageID, Float32ToBlob(embedding),
+	)
+	if err != nil {
+		return fmt.Errorf("upsert embedding: %w", err)
+	}
+	return nil
 }

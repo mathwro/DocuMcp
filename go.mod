@@ -5,6 +5,7 @@ go 1.26.0
 require gopkg.in/yaml.v3 v3.0.1
 
 require (
+	github.com/asg017/sqlite-vec-go-bindings v0.1.6 // indirect
 	github.com/daulet/tokenizers v1.25.0 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/emirpasic/gods v1.18.1 // indirect
