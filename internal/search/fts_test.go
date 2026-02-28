@@ -50,8 +50,13 @@ func TestFTS_ReturnsRelevantResults(t *testing.T) {
 
 func TestFTS_ReturnsEmptyForNoMatch(t *testing.T) {
 	store := setupTestDB(t)
-	srcID, _ := store.InsertSource(db.Source{Name: "S", Type: "web"})
-	store.UpsertPage(db.Page{SourceID: srcID, URL: "u1", Title: "Docker Guide", Content: "Running containers"})
+	srcID, err := store.InsertSource(db.Source{Name: "S", Type: "web"})
+	if err != nil {
+		t.Fatalf("InsertSource: %v", err)
+	}
+	if err := store.UpsertPage(db.Page{SourceID: srcID, URL: "u1", Title: "Docker Guide", Content: "Running containers"}); err != nil {
+		t.Fatalf("UpsertPage: %v", err)
+	}
 
 	results, err := search.FTS(store, "kubernetes helm charts", 10)
 	if err != nil {
@@ -64,21 +69,26 @@ func TestFTS_ReturnsEmptyForNoMatch(t *testing.T) {
 
 func TestFTS_RespectsLimit(t *testing.T) {
 	store := setupTestDB(t)
-	srcID, _ := store.InsertSource(db.Source{Name: "S", Type: "web"})
+	srcID, err := store.InsertSource(db.Source{Name: "S", Type: "web"})
+	if err != nil {
+		t.Fatalf("InsertSource: %v", err)
+	}
 	for i := 0; i < 5; i++ {
-		store.UpsertPage(db.Page{
+		if err := store.UpsertPage(db.Page{
 			SourceID: srcID,
 			URL:      fmt.Sprintf("u%d", i),
 			Title:    "Authentication Guide",
 			Content:  "OAuth authentication configuration",
-		})
+		}); err != nil {
+			t.Fatalf("UpsertPage %d: %v", i, err)
+		}
 	}
 
 	results, err := search.FTS(store, "authentication", 3)
 	if err != nil {
 		t.Fatalf("FTS: %v", err)
 	}
-	if len(results) > 3 {
-		t.Errorf("expected at most 3 results, got %d", len(results))
+	if len(results) != 3 {
+		t.Errorf("expected exactly 3 results (limit enforced), got %d", len(results))
 	}
 }

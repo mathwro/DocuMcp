@@ -3,6 +3,7 @@ package search
 import (
 	"database/sql"
 	"encoding/json"
+	"log/slog"
 )
 
 // Result represents a single search result with relevance score.
@@ -24,7 +25,10 @@ func scanResults(rows *sql.Rows) ([]Result, error) {
 		if err := rows.Scan(&r.URL, &r.Title, &r.Snippet, &r.SourceID, &pathJSON, &r.Score); err != nil {
 			return nil, err
 		}
-		_ = json.Unmarshal([]byte(pathJSON), &r.Path)
+		if err := json.Unmarshal([]byte(pathJSON), &r.Path); err != nil {
+			slog.Warn("failed to unmarshal page path", "path_json", pathJSON, "err", err)
+			r.Path = []string{}
+		}
 		results = append(results, r)
 	}
 	if results == nil {
