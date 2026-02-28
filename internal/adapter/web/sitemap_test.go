@@ -28,6 +28,18 @@ func TestParseSitemap(t *testing.T) {
 	}
 }
 
+func TestParseSitemap_NonOK(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer srv.Close()
+
+	_, err := web.ParseSitemap(srv.URL+"/sitemap.xml", nil)
+	if err == nil {
+		t.Fatal("expected error for non-200 response, got nil")
+	}
+}
+
 func TestParseSitemap_Empty(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/xml")
