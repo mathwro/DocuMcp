@@ -4,6 +4,7 @@ package embed
 
 import (
 	"fmt"
+	"log/slog"
 
 	"github.com/knights-analytics/hugot"
 	"github.com/knights-analytics/hugot/pipelines"
@@ -35,19 +36,27 @@ func New(modelPath string) (*Embedder, error) {
 }
 
 // Embed returns one embedding vector per input text.
-// Vectors are L2-normalised by the pipeline (WithNormalization option is not
-// set here; normalization can be added via pipeline options if desired).
+// Vectors are the raw mean-pooled output of the model; normalization is NOT
+// applied. For cosine similarity (as used by sqlite-vec), either normalize
+// here with hugot.WithNormalization() or use sqlite-vec's vec_distance_cosine
+// function rather than dot product.
 func (e *Embedder) Embed(texts []string) ([][]float32, error) {
 	output, err := e.pipeline.RunPipeline(texts)
 	if err != nil {
 		return nil, fmt.Errorf("embed: %w", err)
 	}
 	vecs := make([][]float32, len(output.Embeddings))
-	copy(vecs, output.Embeddings)
+	for i, emb := range output.Embeddings {
+		dst := make([]float32, len(emb))
+		copy(dst, emb)
+		vecs[i] = dst
+	}
 	return vecs, nil
 }
 
 // Close releases all resources associated with the embedder.
 func (e *Embedder) Close() {
-	_ = e.session.Destroy()
+	if err := e.session.Destroy(); err != nil {
+		slog.Warn("embed: session destroy", "err", err)
+	}
 }
