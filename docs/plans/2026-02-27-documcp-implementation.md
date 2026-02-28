@@ -10,27 +10,27 @@
 | Task 2: Config types + YAML loading | ✅ Done | `35d4978`, `d130a82` |
 | Task 3: Config file watcher | ✅ Done | `9a24347`, `ce49c1d` |
 | Task 4: SQLite database + schema | ✅ Done | `a631a05`, `d218a4f` |
-| Task 5: FTS5 full-text search | ⏳ Next | — |
-| Task 6: ONNX embedding wrapper | — | — |
-| Task 7: sqlite-vec + vector search + RRF | — | — |
-| Task 8: Hierarchical browse (TOC) | — | — |
-| Task 9: Adapter interface + registry | — | — |
-| Task 10: Web adapter — sitemap parsing | — | — |
-| Task 11: Web adapter — HTML extraction + crawling | — | — |
-| Task 12: GitHub Wiki adapter | — | — |
-| Task 13: Azure DevOps Wiki adapter | — | — |
-| Task 14: Microsoft device code flow | — | — |
-| Task 15: GitHub device code flow | — | — |
-| Task 16: Encrypted token storage | — | — |
-| Task 17: Crawl orchestrator | — | — |
-| Task 18: Cron scheduler | — | — |
-| Task 19: MCP server (4 tools) | — | — |
-| Task 20: REST API for Web UI | — | — |
-| Task 21: Auth flow REST endpoints | — | — |
-| Task 22: Web UI base layout + dark theme | — | — |
-| Task 23: Sources dashboard | — | — |
-| Task 24: Search debug UI | — | — |
-| Task 25: Wire main binary | — | — |
+| Task 5: FTS5 full-text search | ✅ Done | `d45d5e2`, `88ae25f` |
+| Task 6: ONNX embedding wrapper | ✅ Done | `b036167`, `46fb47c` |
+| Task 7: sqlite-vec + vector search + RRF | ✅ Done | `b1f1926`, `a8e76a0` |
+| Task 8: Hierarchical browse (TOC) | ✅ Done | `51a0384` |
+| Task 9: Adapter interface + registry | ✅ Done | `cac558e` |
+| Task 10: Web adapter — sitemap parsing | ✅ Done | `3aa49b9`, `fad530c` |
+| Task 11: Web adapter — HTML extraction + crawling | ✅ Done | `1ad2237` |
+| Task 12: GitHub Wiki adapter | ✅ Done | `3bea0c3` |
+| Task 13: Azure DevOps Wiki adapter | ✅ Done | `a364538` |
+| Task 14: Microsoft device code flow | ✅ Done | `041b13d` |
+| Task 15: GitHub device code flow | ✅ Done | `5427187` |
+| Task 16: Encrypted token storage | ✅ Done | `53a7ade` |
+| Task 17: Crawl orchestrator | ✅ Done | `aa95cb7`, `61d8670` |
+| Task 18: Cron scheduler | ✅ Done | `f7beb6b`, `5a3b974` |
+| Task 19: MCP server (4 tools) | ✅ Done | `7130831`, `6f07ceb`, `d123593` |
+| Task 20: REST API for Web UI | ✅ Done | `4d86ce5`, `db44fab` |
+| Task 21: Auth flow REST endpoints | ✅ Done | `58aeab1`, `f2f801f` |
+| Task 22: Web UI base layout + dark theme | ✅ Done | `a62e7bc` |
+| Task 23: Sources dashboard | ✅ Done | `a62e7bc` |
+| Task 24: Search debug UI | ✅ Done | `a62e7bc`, `f86e74b` |
+| Task 25: Wire main binary | ⏳ Next | — |
 | Task 26: Dockerfile + docker-compose | — | — |
 | Task 27: Makefile targets | — | — |
 

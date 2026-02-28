@@ -38,10 +38,10 @@ docs/plans/         # Design doc + implementation plan
 ## Implementation Plan
 `docs/plans/2026-02-27-documcp-implementation.md` — 27 tasks, progress tracker at top.
 
-**Completed:** Tasks 1–16 (foundation, search, adapters, auth)
-**Next:** Task 17 — Crawl orchestrator (`internal/crawler/`)
+**Completed:** Tasks 1–24 (foundation, search, adapters, auth, crawler, MCP server, REST API, Web UI)
+**Next:** Task 25 — Wire main binary (`cmd/documcp/main.go`)
 
-To continue: invoke `superpowers:subagent-driven-development` and pick up at Task 6.
+To continue: invoke `superpowers:subagent-driven-development` and pick up at Task 25.
 
 ## Architecture Decisions
 - Single Go binary — MCP server + Web UI + REST API + crawlers in one process
