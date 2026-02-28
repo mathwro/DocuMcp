@@ -60,11 +60,11 @@ func (c *Crawler) Crawl(ctx context.Context, src db.Source) error {
 func (c *Crawler) indexEmbedding(ctx context.Context, page db.Page) error {
 	p, err := c.store.GetPageByURL(page.URL)
 	if err != nil {
-		return err
+		return fmt.Errorf("get page by url: %w", err)
 	}
 	vecs, err := c.embedder.Embed([]string{page.Title + " " + page.Content})
 	if err != nil {
-		return err
+		return fmt.Errorf("embed: %w", err)
 	}
 	return c.store.UpsertEmbedding(p.ID, vecs[0])
 }
