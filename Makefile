@@ -7,10 +7,10 @@ test:
 	CGO_ENABLED=1 go test -tags sqlite_fts5 ./... -v -timeout 60s
 
 docker:
-	docker build -t documcp:local .
+	podman build -t documcp:local .
 
 run: docker
-	docker-compose up
+	podman compose up
 
 lint:
 	golangci-lint run
