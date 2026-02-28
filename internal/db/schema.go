@@ -66,6 +66,10 @@ CREATE TABLE IF NOT EXISTS crawl_jobs (
     error          TEXT
 );
 
+-- NOTE: all-MiniLM-L6-v2 is trained for cosine similarity, but this version of
+-- sqlite-vec does not support distance_metric=cosine in the vec0 constructor.
+-- To approximate cosine similarity, L2-normalise all vectors before storing them;
+-- L2 distance on unit vectors is monotonically equivalent to cosine distance.
 CREATE VIRTUAL TABLE IF NOT EXISTS page_embeddings USING vec0(
     page_id INTEGER PRIMARY KEY,
     embedding FLOAT[384]

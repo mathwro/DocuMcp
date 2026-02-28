@@ -243,13 +243,19 @@ func Float32ToBlob(v []float32) []byte {
 }
 
 // UpsertEmbedding inserts or replaces the embedding vector for a page.
+// sqlite-vec vec0 virtual tables do not support INSERT OR REPLACE, so we
+// delete any existing row first and then insert.
 func (s *Store) UpsertEmbedding(pageID int64, embedding []float32) error {
-	_, err := s.db.Exec(
-		`INSERT OR REPLACE INTO page_embeddings(page_id, embedding) VALUES (?, ?)`,
+	if _, err := s.db.Exec(
+		`DELETE FROM page_embeddings WHERE page_id = ?`, pageID,
+	); err != nil {
+		return fmt.Errorf("upsert embedding (delete): %w", err)
+	}
+	if _, err := s.db.Exec(
+		`INSERT INTO page_embeddings(page_id, embedding) VALUES (?, ?)`,
 		pageID, Float32ToBlob(embedding),
-	)
-	if err != nil {
-		return fmt.Errorf("upsert embedding: %w", err)
+	); err != nil {
+		return fmt.Errorf("upsert embedding (insert): %w", err)
 	}
 	return nil
 }

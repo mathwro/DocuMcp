@@ -15,7 +15,9 @@ func MergeRRF(ftsResults, semanticResults []Result, limit int) []Result {
 	}
 	for i, r := range semanticResults {
 		scores[r.URL] += 1.0 / (k + float64(i+1))
-		byURL[r.URL] = r
+		if _, exists := byURL[r.URL]; !exists {
+			byURL[r.URL] = r
+		}
 	}
 
 	type scored struct {

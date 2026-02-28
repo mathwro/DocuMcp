@@ -227,6 +227,47 @@ func TestUpsertAndGetToken(t *testing.T) {
 	}
 }
 
+func TestUpsertEmbedding(t *testing.T) {
+	store, err := db.Open(":memory:")
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer store.Close()
+
+	srcID, err := store.InsertSource(db.Source{Name: "S", Type: "web"})
+	if err != nil {
+		t.Fatalf("InsertSource: %v", err)
+	}
+
+	if err := store.UpsertPage(db.Page{
+		SourceID: srcID,
+		URL:      "https://example.com/embed-page",
+		Title:    "Embed Page",
+		Content:  "content for embedding",
+	}); err != nil {
+		t.Fatalf("UpsertPage: %v", err)
+	}
+
+	page, err := store.GetPageByURL("https://example.com/embed-page")
+	if err != nil {
+		t.Fatalf("GetPageByURL: %v", err)
+	}
+
+	vec := make([]float32, 384)
+	for i := range vec {
+		vec[i] = float32(i) / 384.0
+	}
+
+	if err := store.UpsertEmbedding(page.ID, vec); err != nil {
+		t.Fatalf("UpsertEmbedding (first): %v", err)
+	}
+
+	// Second call should be idempotent (INSERT OR REPLACE)
+	if err := store.UpsertEmbedding(page.ID, vec); err != nil {
+		t.Fatalf("UpsertEmbedding (second, idempotent): %v", err)
+	}
+}
+
 func TestGetPageByURL_NotFound(t *testing.T) {
 	store, err := db.Open(":memory:")
 	if err != nil {

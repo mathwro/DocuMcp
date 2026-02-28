@@ -19,13 +19,17 @@ func Semantic(store *db.Store, embedder *embed.Embedder, query string, limit int
 	}
 	blob := db.Float32ToBlob(vecs[0])
 	rows, err := store.DB().Query(`
+		WITH knn AS (
+		    SELECT page_id, distance
+		    FROM page_embeddings
+		    WHERE embedding MATCH ?
+		      AND k = ?
+		)
 		SELECT p.url, p.title, p.content, p.source_id, p.path,
-		       pe.distance AS score
-		FROM page_embeddings pe
-		JOIN pages p ON pe.page_id = p.id
-		WHERE pe.embedding MATCH ?
-		  AND k = ?
-		ORDER BY pe.distance
+		       knn.distance AS score
+		FROM knn
+		JOIN pages p ON knn.page_id = p.id
+		ORDER BY knn.distance
 	`, blob, limit)
 	if err != nil {
 		return nil, fmt.Errorf("semantic query: %w", err)
