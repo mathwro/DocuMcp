@@ -38,8 +38,8 @@ docs/plans/         # Design doc + implementation plan
 ## Implementation Plan
 `docs/plans/2026-02-27-documcp-implementation.md` — 27 tasks, progress tracker at top.
 
-**Completed:** Tasks 1–5 (foundation + FTS5 search)
-**Next:** Task 6 — ONNX embedding wrapper (`internal/embed/`)
+**Completed:** Tasks 1–16 (foundation, search, adapters, auth)
+**Next:** Task 17 — Crawl orchestrator (`internal/crawler/`)
 
 To continue: invoke `superpowers:subagent-driven-development` and pick up at Task 6.
 
