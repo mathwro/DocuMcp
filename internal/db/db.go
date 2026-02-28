@@ -231,6 +231,18 @@ func (s *Store) GetToken(sourceID int64, provider string) ([]byte, error) {
 	return data, nil
 }
 
+// DeleteToken removes the stored token for the given source+provider pair.
+// Returns nil if the token did not exist.
+func (s *Store) DeleteToken(sourceID int64, provider string) error {
+	_, err := s.db.Exec(
+		`DELETE FROM tokens WHERE source_id = ? AND provider = ?`, sourceID, provider,
+	)
+	if err != nil {
+		return fmt.Errorf("delete token (source=%d, provider=%s): %w", sourceID, provider, err)
+	}
+	return nil
+}
+
 // Float32ToBlob serialises a float32 slice as little-endian bytes for sqlite-vec.
 // Exported so the search package can use it for query vectors too.
 func Float32ToBlob(v []float32) []byte {
