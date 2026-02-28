@@ -1,0 +1,24 @@
+services:
+  documcp:
+    build: .
+    image: ghcr.io/documcp/documcp:latest
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./config.yaml:/app/config.yaml
+      - documcp_data:/app/data
+      # Optional: mount Azure CLI credentials to skip Microsoft device code flow
+      - ~/.azure:/root/.azure:ro
+      # Optional: mount GitHub CLI credentials to skip GitHub device code flow
+      - ~/.config/gh:/root/.config/gh:ro
+    restart: unless-stopped
+    environment:
+      - DOCUMCP_CONFIG=/app/config.yaml
+      - DOCUMCP_MODEL_PATH=/app/models/all-MiniLM-L6-v2
+      # REQUIRED for persistent encrypted token storage across restarts.
+      # Generate with: openssl rand -hex 32
+      # If unset, a random key is generated per-run and stored tokens are lost on restart.
+      - DOCUMCP_SECRET_KEY=
+
+volumes:
+  documcp_data:
