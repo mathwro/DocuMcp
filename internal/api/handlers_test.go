@@ -149,6 +149,19 @@ func TestDeleteSource(t *testing.T) {
 	}
 }
 
+func TestDeleteSource_NotFound(t *testing.T) {
+	store := openTestStore(t)
+	srv := api.NewServer(store, nil, nil)
+
+	r := httptest.NewRequest(http.MethodDelete, "/api/sources/9999", nil)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, r)
+
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d", w.Code)
+	}
+}
+
 func TestDeleteSource_BadID(t *testing.T) {
 	store := openTestStore(t)
 	srv := api.NewServer(store, nil, nil)

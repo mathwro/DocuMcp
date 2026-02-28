@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strconv"
 
@@ -18,7 +19,7 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.WriteHeader(status)
 	if err := json.NewEncoder(w).Encode(v); err != nil {
 		// Headers already sent; best-effort log only.
-		_ = fmt.Errorf("write json: %w", err)
+		slog.Error("write json", "err", err)
 	}
 }
 
@@ -81,6 +82,15 @@ func (s *Server) deleteSource(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if _, err := s.store.GetSource(id); err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			writeError(w, http.StatusNotFound, "source not found")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, fmt.Errorf("get source: %w", err).Error())
+		return
+	}
+
 	if err := s.store.DeleteSource(id); err != nil {
 		writeError(w, http.StatusInternalServerError, fmt.Errorf("delete source: %w", err).Error())
 		return
@@ -109,7 +119,7 @@ func (s *Server) triggerCrawl(w http.ResponseWriter, r *http.Request) {
 	if s.crawler != nil {
 		go func() {
 			if err := s.crawler.Crawl(context.Background(), *src); err != nil {
-				_ = fmt.Errorf("background crawl source %d: %w", id, err)
+				slog.Error("background crawl failed", "source_id", id, "err", err)
 			}
 		}()
 	}
