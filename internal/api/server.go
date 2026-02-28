@@ -32,9 +32,8 @@ type Server struct {
 
 // NewServer creates a new API server wired to the given store, crawler, and MCP handler.
 // Pass nil for mcpHandler and/or crawler when not needed (e.g. in tests).
-func NewServer(store *db.Store, c *crawler.Crawler, mcpHandler http.Handler) *Server {
-	// Use a zeroed 32-byte key for now; can be made configurable via env var later.
-	key := make([]byte, 32)
+// key must be exactly 32 bytes and is used for AES-256-GCM token encryption.
+func NewServer(store *db.Store, c *crawler.Crawler, mcpHandler http.Handler, key []byte) *Server {
 	s := &Server{
 		store:        store,
 		crawler:      c,

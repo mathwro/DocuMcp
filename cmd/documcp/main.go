@@ -1,10 +1,124 @@
 package main
 
 import (
+	"context"
+	"crypto/rand"
+	"encoding/base64"
+	"encoding/hex"
 	"fmt"
+	"log/slog"
+	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
+
+	"github.com/documcp/documcp/internal/api"
+	"github.com/documcp/documcp/internal/config"
+	"github.com/documcp/documcp/internal/crawler"
+	"github.com/documcp/documcp/internal/db"
+	"github.com/documcp/documcp/internal/embed"
+	"github.com/documcp/documcp/internal/mcp"
 )
 
 func main() {
-	fmt.Fprintln(os.Stderr, "DocuMcp starting...")
+	cfgPath := getenv("DOCUMCP_CONFIG", "/app/config.yaml")
+	cfg, err := config.Load(cfgPath)
+	if err != nil {
+		slog.Error("load config", "err", err)
+		os.Exit(1)
+	}
+
+	store, err := db.Open(cfg.Server.DataDir + "/documcp.db")
+	if err != nil {
+		slog.Error("open db", "err", err)
+		os.Exit(1)
+	}
+	defer store.Close()
+
+	modelPath := getenv("DOCUMCP_MODEL_PATH", "/app/models/all-MiniLM-L6-v2")
+	var embedder *embed.Embedder
+	if _, statErr := os.Stat(modelPath); statErr == nil {
+		embedder, err = embed.New(modelPath)
+		if err != nil {
+			slog.Warn("embedding model not loaded, semantic search disabled", "err", err)
+		} else {
+			defer embedder.Close()
+			slog.Info("embedding model loaded", "path", modelPath)
+		}
+	}
+
+	c := crawler.New(store, embedder)
+	scheduler := crawler.NewScheduler(c, store)
+	scheduler.Load(cfg)
+	defer func() { _ = scheduler.Stop() }()
+
+	// Reload config on file change. Non-fatal if watch cannot be established.
+	watcher, err := config.Watch(cfgPath, func(newCfg *config.Config) {
+		slog.Info("config reloaded")
+		scheduler.Load(newCfg)
+	})
+	if err != nil {
+		slog.Warn("config watcher not started", "err", err)
+	} else {
+		defer watcher.Stop()
+	}
+
+	key := deriveKey()
+
+	mcpServer := mcp.NewServer(store, embedder)
+	apiServer := api.NewServer(store, c, mcpServer.Handler(), key)
+
+	addr := fmt.Sprintf(":%d", cfg.Server.Port)
+	slog.Info("starting DocuMcp", "addr", addr)
+
+	srv := &http.Server{Addr: addr, Handler: apiServer}
+	go func() {
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			slog.Error("server", "err", err)
+		}
+	}()
+
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGTERM, syscall.SIGINT)
+	<-quit
+	slog.Info("shutting down")
+	if err := srv.Shutdown(context.Background()); err != nil {
+		slog.Error("shutdown", "err", err)
+	}
+}
+
+// deriveKey returns the 32-byte AES-256-GCM key for token encryption.
+// It reads DOCUMCP_SECRET_KEY (hex or base64-encoded 32 bytes). If the env
+// var is absent or invalid, a random ephemeral key is generated and a warning
+// is logged — tokens will not survive process restarts in that case.
+func deriveKey() []byte {
+	raw := os.Getenv("DOCUMCP_SECRET_KEY")
+	if raw != "" {
+		// Try hex first (64 hex chars = 32 bytes).
+		if b, err := hex.DecodeString(raw); err == nil && len(b) == 32 {
+			return b
+		}
+		// Fall back to standard base64 (44 base64 chars = 32 bytes).
+		if b, err := base64.StdEncoding.DecodeString(raw); err == nil && len(b) == 32 {
+			return b
+		}
+		slog.Warn("DOCUMCP_SECRET_KEY is set but could not be decoded as 32-byte hex or base64; using ephemeral key")
+	} else {
+		slog.Warn("DOCUMCP_SECRET_KEY not set; using ephemeral key — stored tokens will not survive restarts")
+	}
+
+	key := make([]byte, 32)
+	if _, err := rand.Read(key); err != nil {
+		// rand.Read cannot fail on supported platforms, but handle defensively.
+		slog.Error("generate ephemeral key", "err", err)
+		os.Exit(1)
+	}
+	return key
+}
+
+func getenv(key, def string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return def
 }

@@ -31,7 +31,7 @@ func openTestStore(t *testing.T) *db.Store {
 
 func TestListSources_Empty(t *testing.T) {
 	store := openTestStore(t)
-	srv := api.NewServer(store, nil, nil)
+	srv := api.NewServer(store, nil, nil, make([]byte, 32))
 
 	r := httptest.NewRequest(http.MethodGet, "/api/sources", nil)
 	w := httptest.NewRecorder()
@@ -57,7 +57,7 @@ func TestListSources(t *testing.T) {
 		t.Fatalf("InsertSource: %v", err)
 	}
 
-	srv := api.NewServer(store, nil, nil)
+	srv := api.NewServer(store, nil, nil, make([]byte, 32))
 	r := httptest.NewRequest(http.MethodGet, "/api/sources", nil)
 	w := httptest.NewRecorder()
 	srv.ServeHTTP(w, r)
@@ -79,7 +79,7 @@ func TestListSources(t *testing.T) {
 
 func TestCreateSource(t *testing.T) {
 	store := openTestStore(t)
-	srv := api.NewServer(store, nil, nil)
+	srv := api.NewServer(store, nil, nil, make([]byte, 32))
 
 	body, err := json.Marshal(db.Source{Name: "NewDocs", Type: "web", URL: "https://example.com"})
 	if err != nil {
@@ -118,7 +118,7 @@ func TestCreateSource(t *testing.T) {
 
 func TestCreateSource_BadBody(t *testing.T) {
 	store := openTestStore(t)
-	srv := api.NewServer(store, nil, nil)
+	srv := api.NewServer(store, nil, nil, make([]byte, 32))
 
 	r := httptest.NewRequest(http.MethodPost, "/api/sources", bytes.NewReader([]byte("not-json")))
 	w := httptest.NewRecorder()
@@ -137,7 +137,7 @@ func TestDeleteSource(t *testing.T) {
 		t.Fatalf("InsertSource: %v", err)
 	}
 
-	srv := api.NewServer(store, nil, nil)
+	srv := api.NewServer(store, nil, nil, make([]byte, 32))
 	r := httptest.NewRequest(http.MethodDelete, "/api/sources/"+itoa(id), nil)
 	w := httptest.NewRecorder()
 	srv.ServeHTTP(w, r)
@@ -158,7 +158,7 @@ func TestDeleteSource(t *testing.T) {
 
 func TestDeleteSource_NotFound(t *testing.T) {
 	store := openTestStore(t)
-	srv := api.NewServer(store, nil, nil)
+	srv := api.NewServer(store, nil, nil, make([]byte, 32))
 
 	r := httptest.NewRequest(http.MethodDelete, "/api/sources/9999", nil)
 	w := httptest.NewRecorder()
@@ -171,7 +171,7 @@ func TestDeleteSource_NotFound(t *testing.T) {
 
 func TestDeleteSource_BadID(t *testing.T) {
 	store := openTestStore(t)
-	srv := api.NewServer(store, nil, nil)
+	srv := api.NewServer(store, nil, nil, make([]byte, 32))
 
 	r := httptest.NewRequest(http.MethodDelete, "/api/sources/abc", nil)
 	w := httptest.NewRecorder()
@@ -184,7 +184,7 @@ func TestDeleteSource_BadID(t *testing.T) {
 
 func TestTriggerCrawl_SourceNotFound(t *testing.T) {
 	store := openTestStore(t)
-	srv := api.NewServer(store, nil, nil)
+	srv := api.NewServer(store, nil, nil, make([]byte, 32))
 
 	r := httptest.NewRequest(http.MethodPost, "/api/sources/999/crawl", nil)
 	w := httptest.NewRecorder()
@@ -204,7 +204,7 @@ func TestTriggerCrawl_NilCrawler(t *testing.T) {
 	}
 
 	// Pass nil crawler — triggerCrawl should still return 202.
-	srv := api.NewServer(store, nil, nil)
+	srv := api.NewServer(store, nil, nil, make([]byte, 32))
 	r := httptest.NewRequest(http.MethodPost, "/api/sources/"+itoa(id)+"/crawl", nil)
 	w := httptest.NewRecorder()
 	srv.ServeHTTP(w, r)
@@ -223,7 +223,7 @@ func TestTriggerCrawl_NilCrawler(t *testing.T) {
 
 func TestSearchHandler_MissingQuery(t *testing.T) {
 	store := openTestStore(t)
-	srv := api.NewServer(store, nil, nil)
+	srv := api.NewServer(store, nil, nil, make([]byte, 32))
 
 	r := httptest.NewRequest(http.MethodGet, "/api/search", nil)
 	w := httptest.NewRecorder()
@@ -236,7 +236,7 @@ func TestSearchHandler_MissingQuery(t *testing.T) {
 
 func TestSearchHandler_EmptyResults(t *testing.T) {
 	store := openTestStore(t)
-	srv := api.NewServer(store, nil, nil)
+	srv := api.NewServer(store, nil, nil, make([]byte, 32))
 
 	r := httptest.NewRequest(http.MethodGet, "/api/search?q=golang", nil)
 	w := httptest.NewRecorder()
@@ -263,7 +263,7 @@ func itoa(n int64) string {
 
 func TestAuthStart_NotFound(t *testing.T) {
 	store := openTestStore(t)
-	srv := api.NewServer(store, nil, nil)
+	srv := api.NewServer(store, nil, nil, make([]byte, 32))
 
 	r := httptest.NewRequest(http.MethodPost, "/api/sources/9999/auth/start", nil)
 	w := httptest.NewRecorder()
@@ -276,7 +276,7 @@ func TestAuthStart_NotFound(t *testing.T) {
 
 func TestAuthStart_BadID(t *testing.T) {
 	store := openTestStore(t)
-	srv := api.NewServer(store, nil, nil)
+	srv := api.NewServer(store, nil, nil, make([]byte, 32))
 
 	r := httptest.NewRequest(http.MethodPost, "/api/sources/abc/auth/start", nil)
 	w := httptest.NewRecorder()
@@ -295,7 +295,7 @@ func TestAuthPoll_NoPendingFlow(t *testing.T) {
 		t.Fatalf("InsertSource: %v", err)
 	}
 
-	srv := api.NewServer(store, nil, nil)
+	srv := api.NewServer(store, nil, nil, make([]byte, 32))
 	r := httptest.NewRequest(http.MethodGet, "/api/sources/"+itoa(id)+"/auth/poll", nil)
 	w := httptest.NewRecorder()
 	srv.ServeHTTP(w, r)
@@ -308,7 +308,7 @@ func TestAuthPoll_NoPendingFlow(t *testing.T) {
 
 func TestAuthRevoke_NotFound(t *testing.T) {
 	store := openTestStore(t)
-	srv := api.NewServer(store, nil, nil)
+	srv := api.NewServer(store, nil, nil, make([]byte, 32))
 
 	r := httptest.NewRequest(http.MethodDelete, "/api/sources/9999/auth", nil)
 	w := httptest.NewRecorder()
@@ -327,7 +327,7 @@ func TestAuthRevoke_NoToken(t *testing.T) {
 		t.Fatalf("InsertSource: %v", err)
 	}
 
-	srv := api.NewServer(store, nil, nil)
+	srv := api.NewServer(store, nil, nil, make([]byte, 32))
 	// Revoking when no token exists should still succeed (idempotent).
 	r := httptest.NewRequest(http.MethodDelete, "/api/sources/"+itoa(id)+"/auth", nil)
 	w := httptest.NewRecorder()
