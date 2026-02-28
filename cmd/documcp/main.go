@@ -50,7 +50,6 @@ func main() {
 	c := crawler.New(store, embedder)
 	scheduler := crawler.NewScheduler(c, store)
 	scheduler.Load(cfg)
-	defer func() { _ = scheduler.Stop() }()
 
 	// Reload config on file change. Non-fatal if watch cannot be established.
 	watcher, err := config.Watch(cfgPath, func(newCfg *config.Config) {
@@ -81,10 +80,13 @@ func main() {
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGTERM, syscall.SIGINT)
 	<-quit
+	signal.Stop(quit) // deregister so a second SIGINT uses the default handler
 	slog.Info("shutting down")
 	if err := srv.Shutdown(context.Background()); err != nil {
-		slog.Error("shutdown", "err", err)
+		slog.Error("http shutdown", "err", err)
 	}
+	drainCtx := scheduler.Stop()
+	<-drainCtx.Done()
 }
 
 // deriveKey returns the 32-byte AES-256-GCM key for token encryption.
@@ -100,6 +102,10 @@ func deriveKey() []byte {
 		}
 		// Fall back to standard base64 (44 base64 chars = 32 bytes).
 		if b, err := base64.StdEncoding.DecodeString(raw); err == nil && len(b) == 32 {
+			return b
+		}
+		// Fall back to URL-safe base64 (produced by openssl, Python urlsafe_b64encode, etc.).
+		if b, err := base64.URLEncoding.DecodeString(raw); err == nil && len(b) == 32 {
 			return b
 		}
 		slog.Warn("DOCUMCP_SECRET_KEY is set but could not be decoded as 32-byte hex or base64; using ephemeral key")
