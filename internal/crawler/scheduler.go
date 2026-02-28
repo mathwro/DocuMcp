@@ -3,6 +3,7 @@ package crawler
 import (
 	"context"
 	"log/slog"
+	"sync"
 
 	"github.com/documcp/documcp/internal/config"
 	"github.com/documcp/documcp/internal/db"
@@ -11,6 +12,7 @@ import (
 
 // Scheduler manages cron-based crawl jobs derived from a Config.
 type Scheduler struct {
+	mu      sync.Mutex
 	cron    *cron.Cron
 	crawler *Crawler
 	store   *db.Store
@@ -26,9 +28,14 @@ func NewScheduler(c *Crawler, store *db.Store) *Scheduler {
 }
 
 // Load replaces the running schedule with the one derived from cfg.
-// Any existing schedule is stopped first, then a fresh cron instance is started.
+// Any existing schedule is stopped first and drained before the new schedule starts,
+// preventing overlapping crawls of the same source during a config reload.
 func (s *Scheduler) Load(cfg *config.Config) {
-	s.cron.Stop()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	ctx := s.cron.Stop()
+	<-ctx.Done() // wait for in-flight jobs to finish before replacing
 	s.cron = cron.New()
 
 	for _, src := range cfg.Sources {
@@ -61,5 +68,11 @@ func (s *Scheduler) Load(cfg *config.Config) {
 	s.cron.Start()
 }
 
-// Stop halts all scheduled crawl jobs.
-func (s *Scheduler) Stop() { s.cron.Stop() }
+// Stop halts all scheduled crawl jobs and returns a context that is cancelled
+// once all in-flight jobs have finished. Callers may block on ctx.Done() to
+// wait for a clean shutdown.
+func (s *Scheduler) Stop() context.Context {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.cron.Stop()
+}
