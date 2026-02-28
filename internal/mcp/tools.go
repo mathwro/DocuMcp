@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -110,6 +111,7 @@ func (s *Server) handleSearchDocs(_ context.Context, req *sdkmcp.CallToolRequest
 	semResults, err := search.Semantic(s.store, s.embedder, args.Query, limit)
 	if err != nil {
 		// Semantic search failure is non-fatal — log and continue with FTS only.
+		slog.Warn("semantic search failed, falling back to FTS only", "err", err)
 		semResults = nil
 	}
 
