@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DocuMcp</title>
+  <link rel="stylesheet" href="/style.css">
+  <script defer src="https://unpkg.com/alpinejs@3/dist/cdn.min.js"></script>
+  <script defer src="/app.js"></script>
+</head>
+<body x-data="app()" x-init="init()">
+  <nav class="sidebar">
+    <div class="logo">DocuMcp</div>
+    <a href="#" @click.prevent="view='sources'" :class="{active: view==='sources'}">Sources</a>
+    <a href="#" @click.prevent="view='search'" :class="{active: view==='search'}">Search</a>
+  </nav>
+  <main class="content">
+
+    <!-- Sources Dashboard -->
+    <div x-show="view==='sources'" x-cloak>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem">
+        <h1>Documentation Sources</h1>
+        <button @click="showAddForm=!showAddForm">+ Add Source</button>
+      </div>
+
+      <!-- Add Source Form -->
+      <div x-show="showAddForm" class="card" style="margin-bottom:1.5rem">
+        <h2 style="margin-bottom:1rem">Add Source</h2>
+        <select x-model="newSource.Type">
+          <option value="web">Web</option>
+          <option value="github_wiki">GitHub Wiki</option>
+          <option value="azure_devops">Azure DevOps Wiki</option>
+        </select>
+        <input type="text" x-model="newSource.Name" placeholder="Source name" />
+        <template x-if="newSource.Type === 'web'">
+          <input type="url" x-model="newSource.URL" placeholder="https://docs.example.com" />
+        </template>
+        <template x-if="newSource.Type === 'github_wiki'">
+          <input type="text" x-model="newSource.Repo" placeholder="owner/repo" />
+        </template>
+        <template x-if="newSource.Type === 'azure_devops'">
+          <input type="url" x-model="newSource.URL" placeholder="https://dev.azure.com/org/project" />
+        </template>
+        <input type="text" x-model="newSource.CrawlSchedule" placeholder="Cron schedule (e.g. 0 2 * * *)" />
+        <div class="actions">
+          <button @click="addSource()">Add</button>
+          <button class="secondary" @click="showAddForm=false">Cancel</button>
+        </div>
+      </div>
+
+      <!-- Device Code Modal -->
+      <div x-show="deviceCodePending" class="card" style="margin-bottom:1.5rem">
+        <h2>Authenticate</h2>
+        <p class="muted" style="margin:0.5rem 0">Visit the URL below and enter the code to connect:</p>
+        <div class="device-code-box">
+          <p><a :href="deviceCodePending?.VerificationURI" target="_blank" x-text="deviceCodePending?.VerificationURI" style="color:var(--accent)"></a></p>
+          <div class="device-code" x-text="deviceCodePending?.UserCode"></div>
+        </div>
+        <div class="actions" style="margin-top:1rem">
+          <button class="secondary" @click="cancelAuth(deviceCodePending?.sourceId)">Cancel</button>
+        </div>
+      </div>
+
+      <!-- Source list -->
+      <template x-if="sources.length === 0">
+        <p class="muted">No sources configured. Add one to get started.</p>
+      </template>
+      <template x-for="src in sources" :key="src.ID">
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <strong x-text="src.Name"></strong>
+              <span class="badge" :class="src.PageCount > 0 ? 'badge-ok' : 'badge-pending'"
+                    x-text="src.PageCount + ' pages'"></span>
+              <span class="badge badge-pending" x-text="sourceTypeName(src.Type)"></span>
+            </div>
+            <div class="actions">
+              <button class="secondary" @click="connectAuth(src.ID)">Connect</button>
+              <button class="secondary" @click="crawlNow(src.ID)">Crawl Now</button>
+              <button class="danger" @click="deleteSource(src.ID)">Remove</button>
+            </div>
+          </div>
+          <div class="muted" x-show="src.LastCrawled" x-text="'Last crawled: ' + src.LastCrawled"></div>
+        </div>
+      </template>
+    </div>
+
+    <!-- Search Debug UI -->
+    <div x-show="view==='search'" x-cloak>
+      <h1>Search</h1>
+      <div class="form-row" style="margin-bottom:1.5rem">
+        <input type="text" x-model="searchQuery" placeholder="Search documentation..."
+               @keydown.enter="doSearch()" style="margin-bottom:0" />
+        <button @click="doSearch()" :disabled="searchLoading">
+          <span x-show="!searchLoading">Search</span>
+          <span x-show="searchLoading">...</span>
+        </button>
+      </div>
+      <div x-show="searchError" style="color:var(--danger);margin-bottom:1rem" x-text="searchError"></div>
+      <div x-show="searchResults.length === 0 && !searchLoading && searchQuery" class="muted">No results found.</div>
+      <div class="card" x-show="searchResults.length > 0">
+        <template x-for="result in searchResults" :key="result.URL">
+          <div class="search-result">
+            <div class="result-title" x-text="result.Title || result.URL"></div>
+            <div class="result-meta" x-text="result.URL + ' · score: ' + (result.Score || 0).toFixed(4)"></div>
+            <div class="result-snippet" x-text="result.Snippet ? result.Snippet.substring(0, 200) : ''"></div>
+          </div>
+        </template>
+      </div>
+    </div>
+
+  </main>
+</body>
+</html>

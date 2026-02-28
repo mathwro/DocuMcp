@@ -7,6 +7,7 @@ import (
 	"github.com/documcp/documcp/internal/auth"
 	"github.com/documcp/documcp/internal/crawler"
 	"github.com/documcp/documcp/internal/db"
+	"github.com/documcp/documcp/web"
 )
 
 // pendingFlow holds an in-progress device code flow and the metadata needed to
@@ -63,5 +64,5 @@ func (s *Server) routes() {
 	if s.mcpHandler != nil {
 		s.mux.Handle("/mcp/", s.mcpHandler)
 	}
-	// Static files — will be added in Task 22
+	s.mux.Handle("/", http.FileServer(web.FileSystem()))
 }
