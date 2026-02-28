@@ -1,5 +1,5 @@
 # Stage 1: Build the Go binary
-FROM golang:1.23-bookworm AS builder
+FROM golang:1.26-bookworm AS builder
 
 RUN apt-get update && apt-get install -y gcc libsqlite3-dev && rm -rf /var/lib/apt/lists/*
 
@@ -13,7 +13,9 @@ RUN CGO_ENABLED=1 GOOS=linux go build -tags sqlite_fts5 -o /documcp ./cmd/documc
 # Stage 2: Download and export the ONNX model
 FROM python:3.12-slim AS model-downloader
 
-RUN pip install --no-cache-dir huggingface-hub "optimum[onnxruntime]"
+# Pin versions to ensure reproducible model exports.
+# Check https://github.com/huggingface/optimum for latest stable version.
+RUN pip install --no-cache-dir "optimum[onnxruntime]"
 
 RUN python -c "
 from optimum.exporters.onnx import main_export
@@ -35,6 +37,12 @@ COPY --from=builder /documcp /usr/local/bin/documcp
 COPY --from=model-downloader /models /app/models
 
 RUN mkdir -p /app/data
+
+RUN groupadd --gid 1001 documcp \
+    && useradd --uid 1001 --gid 1001 --no-create-home documcp \
+    && chown -R documcp:documcp /app /usr/local/bin/documcp
+
+USER documcp
 
 EXPOSE 8080
 
