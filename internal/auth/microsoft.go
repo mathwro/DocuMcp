@@ -14,13 +14,6 @@ import (
 // No app registration required — works across all tenants without admin consent.
 const AzureCLIClientID = "04b07795-8ddb-461a-bbee-02f9e1bf7b46"
 
-// Token holds an OAuth access token and its metadata.
-type Token struct {
-	AccessToken  string    `json:"access_token"`
-	RefreshToken string    `json:"refresh_token"`
-	ExpiresAt    time.Time `json:"expires_at"`
-}
-
 // MicrosoftDeviceFlow holds state for an in-progress device code flow.
 type MicrosoftDeviceFlow struct {
 	DeviceCode      string
