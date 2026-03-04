@@ -81,7 +81,7 @@
             </div>
           </div>
           <div class="muted" x-show="src.LastCrawled" x-text="'Last crawled: ' + formatDate(src.LastCrawled)"></div>
-          <div class="muted" x-show="!src.LastCrawled && !isCrawling(src.ID)">Never crawled</div>
+          <div class="muted" x-show="!src.LastCrawled && !isCrawling(src)">Never crawled</div>
         </div>
       </template>
     </div>
