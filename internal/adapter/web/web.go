@@ -116,7 +116,10 @@ func fetchPage(ctx context.Context, client *http.Client, pageURL string, sourceI
 	if title == "" {
 		title = pageURL
 	}
-	u, _ := url.Parse(pageURL)
+	u, err := url.Parse(pageURL)
+	if err != nil {
+		return db.Page{}, fmt.Errorf("parse page URL %s: %w", pageURL, err)
+	}
 	path := urlToPath(u, base)
 	return db.Page{
 		SourceID: sourceID,

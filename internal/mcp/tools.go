@@ -142,10 +142,6 @@ func (s *Server) handleSearchDocs(_ context.Context, req *sdkmcp.CallToolRequest
 		}
 	}
 
-	if len(results) > finalLimit {
-		results = results[:finalLimit]
-	}
-
 	data, err := json.Marshal(results)
 	if err != nil {
 		return toolError(fmt.Sprintf("marshal results: %v", err))

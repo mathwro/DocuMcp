@@ -85,12 +85,13 @@ func (c *Crawler) Crawl(ctx context.Context, src db.Source) error {
 
 	count := 0
 	for page := range pages {
-		if err := c.store.UpsertPage(page); err != nil {
+		pageID, err := c.store.UpsertPage(page)
+		if err != nil {
 			slog.Error("upsert page", "url", page.URL, "err", err)
 			continue
 		}
 		if c.embedder != nil {
-			if err := c.indexEmbedding(ctx, page); err != nil {
+			if err := c.indexEmbedding(ctx, pageID, page); err != nil {
 				slog.Error("embed page", "url", page.URL, "err", err)
 			}
 		}
@@ -99,17 +100,13 @@ func (c *Crawler) Crawl(ctx context.Context, src db.Source) error {
 	return c.store.UpdateSourcePageCount(src.ID, count)
 }
 
-// indexEmbedding fetches the stored page ID and upserts its embedding.
-func (c *Crawler) indexEmbedding(ctx context.Context, page db.Page) error {
-	p, err := c.store.GetPageByURL(page.URL)
-	if err != nil {
-		return fmt.Errorf("get page by url: %w", err)
-	}
+// indexEmbedding generates and stores the embedding vector for a page.
+func (c *Crawler) indexEmbedding(ctx context.Context, pageID int64, page db.Page) error {
 	vecs, err := c.embedder.Embed([]string{page.Title + " " + page.Content})
 	if err != nil {
 		return fmt.Errorf("embed: %w", err)
 	}
-	return c.store.UpsertEmbedding(p.ID, vecs[0])
+	return c.store.UpsertEmbedding(pageID, vecs[0])
 }
 
 // sourceToConfig maps a db.Source to a config.SourceConfig for adapter dispatch.

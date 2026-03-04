@@ -27,6 +27,7 @@ func New(modelPath string) (*Embedder, error) {
 		ModelPath:    modelPath,
 		Name:         "embedder",
 		OnnxFilename: "model.onnx",
+		Normalize:    true,
 	})
 	if err != nil {
 		_ = session.Destroy()
@@ -35,11 +36,10 @@ func New(modelPath string) (*Embedder, error) {
 	return &Embedder{session: session, pipeline: pipeline}, nil
 }
 
-// Embed returns one embedding vector per input text.
-// Vectors are the raw mean-pooled output of the model; normalization is NOT
-// applied. For cosine similarity (as used by sqlite-vec), either normalize
-// here with hugot.WithNormalization() or use sqlite-vec's vec_distance_cosine
-// function rather than dot product.
+// Embed returns one L2-normalised embedding vector per input text.
+// Normalisation is applied by the hugot pipeline so that L2 distance on
+// the stored unit vectors is equivalent to cosine distance, matching the
+// expectation in the page_embeddings schema.
 func (e *Embedder) Embed(texts []string) ([][]float32, error) {
 	output, err := e.pipeline.RunPipeline(texts)
 	if err != nil {

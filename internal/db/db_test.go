@@ -62,7 +62,7 @@ func TestUpsertAndGetPage(t *testing.T) {
 		t.Fatalf("InsertSource: %v", err)
 	}
 
-	err = store.UpsertPage(db.Page{
+	_, err = store.UpsertPage(db.Page{
 		SourceID: sourceID,
 		URL:      "https://example.com/page",
 		Title:    "Test Page",
@@ -96,10 +96,10 @@ func TestUpsertPage_UpdatesOnConflict(t *testing.T) {
 	if err != nil {
 		t.Fatalf("InsertSource: %v", err)
 	}
-	if err := store.UpsertPage(db.Page{SourceID: srcID, URL: "https://example.com/p", Title: "Old Title", Content: "old"}); err != nil {
+	if _, err := store.UpsertPage(db.Page{SourceID: srcID, URL: "https://example.com/p", Title: "Old Title", Content: "old"}); err != nil {
 		t.Fatalf("UpsertPage (first): %v", err)
 	}
-	if err := store.UpsertPage(db.Page{SourceID: srcID, URL: "https://example.com/p", Title: "New Title", Content: "new"}); err != nil {
+	if _, err := store.UpsertPage(db.Page{SourceID: srcID, URL: "https://example.com/p", Title: "New Title", Content: "new"}); err != nil {
 		t.Fatalf("UpsertPage (second): %v", err)
 	}
 
@@ -239,7 +239,7 @@ func TestUpsertEmbedding(t *testing.T) {
 		t.Fatalf("InsertSource: %v", err)
 	}
 
-	if err := store.UpsertPage(db.Page{
+	if _, err := store.UpsertPage(db.Page{
 		SourceID: srcID,
 		URL:      "https://example.com/embed-page",
 		Title:    "Embed Page",

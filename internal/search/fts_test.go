@@ -31,7 +31,7 @@ func TestFTS_ReturnsRelevantResults(t *testing.T) {
 		{SourceID: srcID, URL: "u3", Title: "Database Schema", Content: "PostgreSQL schema design and migration strategies"},
 	}
 	for _, p := range pages {
-		if err := store.UpsertPage(p); err != nil {
+		if _, err := store.UpsertPage(p); err != nil {
 			t.Fatalf("UpsertPage: %v", err)
 		}
 	}
@@ -54,7 +54,7 @@ func TestFTS_ReturnsEmptyForNoMatch(t *testing.T) {
 	if err != nil {
 		t.Fatalf("InsertSource: %v", err)
 	}
-	if err := store.UpsertPage(db.Page{SourceID: srcID, URL: "u1", Title: "Docker Guide", Content: "Running containers"}); err != nil {
+	if _, err := store.UpsertPage(db.Page{SourceID: srcID, URL: "u1", Title: "Docker Guide", Content: "Running containers"}); err != nil {
 		t.Fatalf("UpsertPage: %v", err)
 	}
 
@@ -74,7 +74,7 @@ func TestFTS_RespectsLimit(t *testing.T) {
 		t.Fatalf("InsertSource: %v", err)
 	}
 	for i := 0; i < 5; i++ {
-		if err := store.UpsertPage(db.Page{
+		if _, err := store.UpsertPage(db.Page{
 			SourceID: srcID,
 			URL:      fmt.Sprintf("u%d", i),
 			Title:    "Authentication Guide",

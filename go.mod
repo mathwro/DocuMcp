@@ -7,6 +7,7 @@ require (
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/knights-analytics/hugot v0.6.3
 	github.com/mattn/go-sqlite3 v1.14.34
+	github.com/modelcontextprotocol/go-sdk v0.8.0
 	github.com/robfig/cron/v3 v3.0.1
 	golang.org/x/net v0.51.0
 	gopkg.in/yaml.v3 v3.0.1
@@ -28,7 +29,6 @@ require (
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/knights-analytics/ortgenai v0.1.0 // indirect
 	github.com/mitchellh/colorstring v0.0.0-20190213212951-d06e56a500db // indirect
-	github.com/modelcontextprotocol/go-sdk v0.8.0 // indirect
 	github.com/patrickmn/go-cache v2.1.0+incompatible // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
