@@ -38,7 +38,8 @@ func (a *AzureDevOpsAdapter) Crawl(ctx context.Context, src config.SourceConfig,
 	go func() {
 		defer close(ch)
 
-		token, _ := loadMicrosoftToken()
+		// src.Token is populated by the crawler from the token store.
+		token := src.Token
 		client := &http.Client{}
 
 		// Determine base API URL: adapter override wins, then source BaseURL.
@@ -149,9 +150,4 @@ func wikiPathToSlice(path string) []string {
 		result[i] = strings.ReplaceAll(p, "-", " ")
 	}
 	return result
-}
-
-// loadMicrosoftToken is a placeholder. Authentication is implemented in Task 14.
-func loadMicrosoftToken() (string, error) {
-	return "", nil
 }

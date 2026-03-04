@@ -2,6 +2,7 @@ package crawler
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 
@@ -9,6 +10,7 @@ import (
 	_ "github.com/documcp/documcp/internal/adapter/azuredevops"
 	_ "github.com/documcp/documcp/internal/adapter/github"
 	_ "github.com/documcp/documcp/internal/adapter/web"
+	"github.com/documcp/documcp/internal/auth"
 	"github.com/documcp/documcp/internal/config"
 	"github.com/documcp/documcp/internal/db"
 	"github.com/documcp/documcp/internal/embed"
@@ -17,13 +19,34 @@ import (
 // Crawler dispatches crawl jobs to the appropriate adapter, persists pages,
 // and optionally computes embeddings for semantic search.
 type Crawler struct {
-	store    *db.Store
-	embedder *embed.Embedder // nil = skip embeddings
+	store      *db.Store
+	embedder   *embed.Embedder  // nil = skip embeddings
+	tokenStore *auth.TokenStore // nil = no token loading
 }
 
 // New returns a new Crawler. Pass nil for embedder to skip embedding generation.
 func New(store *db.Store, embedder *embed.Embedder) *Crawler {
 	return &Crawler{store: store, embedder: embedder}
+}
+
+// WithTokenStore sets the token store used to load OAuth tokens for adapters
+// that require authentication. It returns the Crawler for chaining.
+func (c *Crawler) WithTokenStore(ts *auth.TokenStore) *Crawler {
+	c.tokenStore = ts
+	return c
+}
+
+// providerForType returns the OAuth provider name for a given source type,
+// or empty string if the type does not require OAuth.
+func providerForType(sourceType string) string {
+	switch sourceType {
+	case "github_wiki":
+		return "github"
+	case "azure_devops":
+		return "microsoft"
+	default:
+		return ""
+	}
 }
 
 // Crawl dispatches to the correct adapter, consumes the pages channel,
@@ -35,6 +58,26 @@ func (c *Crawler) Crawl(ctx context.Context, src db.Source) error {
 	}
 
 	cfgSrc := sourceToConfig(src)
+
+	// Load OAuth token from the store and inject it into the source config so
+	// adapters can use it without calling stub functions.
+	if c.tokenStore != nil {
+		if provider := providerForType(src.Type); provider != "" {
+			token, err := c.tokenStore.Load(src.ID, provider)
+			if err != nil {
+				if errors.Is(err, db.ErrNotFound) {
+					slog.Warn("crawler: no token stored for source, proceeding unauthenticated",
+						"source_id", src.ID, "provider", provider)
+				} else {
+					slog.Error("crawler: load token failed, proceeding unauthenticated",
+						"source_id", src.ID, "provider", provider, "err", err)
+				}
+			} else {
+				cfgSrc.Token = token.AccessToken
+			}
+		}
+	}
+
 	pages, err := a.Crawl(ctx, cfgSrc, src.ID)
 	if err != nil {
 		return fmt.Errorf("crawl: %w", err)

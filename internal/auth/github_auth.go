@@ -41,6 +41,9 @@ func NewGitHubDeviceFlow(baseURL, clientID string) (*GitHubDeviceFlow, error) {
 		return nil, fmt.Errorf("device code request: %w", err)
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("device code request failed: HTTP %d", resp.StatusCode)
+	}
 
 	var result struct {
 		DeviceCode      string `json:"device_code"`

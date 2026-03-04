@@ -30,6 +30,8 @@ type SourceConfig struct {
 	SpaceKey string `yaml:"space_key,omitempty"`
 	// scheduling
 	CrawlSchedule string `yaml:"crawl_schedule,omitempty"`
+	// Token is populated at runtime from the token store and never read from YAML.
+	Token string `yaml:"-"`
 }
 
 func Load(path string) (*Config, error) {

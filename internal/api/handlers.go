@@ -17,12 +17,14 @@ import (
 )
 
 // githubClientID returns the GitHub OAuth app client ID to use for device flows.
-// Falls back to the well-known public client ID if the env var is not set.
+// Falls back to the well-known public DocuMcp GitHub App client ID if the env
+// var GITHUB_CLIENT_ID is not set. This is a public client ID safe to embed
+// in source code; it does not act as a secret.
 func githubClientID() string {
 	if id := os.Getenv("GITHUB_CLIENT_ID"); id != "" {
 		return id
 	}
-	return "178c6fc778ccc68e1d6a"
+	return "178c6fc778ccc68e1d6a" // public DocuMcp GitHub App client ID
 }
 
 // writeJSON writes v as JSON to w with the given status code.
@@ -38,6 +40,13 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 // writeError writes a JSON error body with the given status code.
 func writeError(w http.ResponseWriter, status int, msg string) {
 	writeJSON(w, status, map[string]string{"error": msg})
+}
+
+// internalError logs the full error and returns a generic 500 to the client,
+// preventing internal details (file paths, SQL errors, etc.) from leaking.
+func internalError(w http.ResponseWriter, op string, err error) {
+	slog.Error(op, "err", err)
+	writeError(w, http.StatusInternalServerError, "internal server error")
 }
 
 // parseID reads the path parameter named "id" and returns it as int64.
@@ -57,7 +66,7 @@ func parseID(w http.ResponseWriter, r *http.Request) (int64, bool) {
 func (s *Server) listSources(w http.ResponseWriter, r *http.Request) {
 	sources, err := s.store.ListSources()
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Errorf("list sources: %w", err).Error())
+		internalError(w, "list sources", err)
 		return
 	}
 	writeJSON(w, http.StatusOK, sources)
@@ -66,6 +75,9 @@ func (s *Server) listSources(w http.ResponseWriter, r *http.Request) {
 // createSource handles POST /api/sources.
 // Decodes a db.Source from the request body, inserts it, and returns 201 with the created source.
 func (s *Server) createSource(w http.ResponseWriter, r *http.Request) {
+	// Cap request body to 1 MiB to prevent memory exhaustion.
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+
 	var src db.Source
 	if err := json.NewDecoder(r.Body).Decode(&src); err != nil {
 		writeError(w, http.StatusBadRequest, fmt.Errorf("decode body: %w", err).Error())
@@ -74,13 +86,13 @@ func (s *Server) createSource(w http.ResponseWriter, r *http.Request) {
 
 	id, err := s.store.InsertSource(src)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Errorf("insert source: %w", err).Error())
+		internalError(w, "insert source", err)
 		return
 	}
 
 	created, err := s.store.GetSource(id)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Errorf("get source after insert: %w", err).Error())
+		internalError(w, "get source after insert", err)
 		return
 	}
 	writeJSON(w, http.StatusCreated, created)
@@ -99,12 +111,12 @@ func (s *Server) deleteSource(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusNotFound, "source not found")
 			return
 		}
-		writeError(w, http.StatusInternalServerError, fmt.Errorf("get source: %w", err).Error())
+		internalError(w, "get source", err)
 		return
 	}
 
 	if err := s.store.DeleteSource(id); err != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Errorf("delete source: %w", err).Error())
+		internalError(w, "delete source", err)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -121,16 +133,18 @@ func (s *Server) triggerCrawl(w http.ResponseWriter, r *http.Request) {
 	src, err := s.store.GetSource(id)
 	if err != nil {
 		if errors.Is(err, db.ErrNotFound) {
-			writeError(w, http.StatusNotFound, fmt.Errorf("get source: %w", err).Error())
+			writeError(w, http.StatusNotFound, "source not found")
 			return
 		}
-		writeError(w, http.StatusInternalServerError, fmt.Errorf("get source: %w", err).Error())
+		internalError(w, "get source", err)
 		return
 	}
 
 	if s.crawler != nil {
+		// Use the server's context so the goroutine is cancelled on shutdown.
+		crawlCtx := s.ctx
 		go func() {
-			if err := s.crawler.Crawl(context.Background(), *src); err != nil {
+			if err := s.crawler.Crawl(crawlCtx, *src); err != nil {
 				slog.Error("background crawl failed", "source_id", id, "err", err)
 			}
 		}()
@@ -150,7 +164,7 @@ func (s *Server) searchHandler(w http.ResponseWriter, r *http.Request) {
 
 	results, err := search.FTS(s.store, q, 20)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Errorf("search: %w", err).Error())
+		internalError(w, "search", err)
 		return
 	}
 	writeJSON(w, http.StatusOK, results)
@@ -171,7 +185,7 @@ func (s *Server) authStart(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusNotFound, "source not found")
 			return
 		}
-		writeError(w, http.StatusInternalServerError, fmt.Errorf("get source: %w", err).Error())
+		internalError(w, "get source", err)
 		return
 	}
 
@@ -181,7 +195,7 @@ func (s *Server) authStart(w http.ResponseWriter, r *http.Request) {
 		clientID := githubClientID()
 		ghFlow, err := auth.NewGitHubDeviceFlow("https://github.com", clientID)
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, fmt.Errorf("start github device flow: %w", err).Error())
+			internalError(w, "start github device flow", err)
 			return
 		}
 		pf = pendingFlow{
@@ -194,16 +208,17 @@ func (s *Server) authStart(w http.ResponseWriter, r *http.Request) {
 		s.flowMu.Unlock()
 
 		slog.Info("auth start: GitHub device flow initiated", "source_id", id)
+		// device_code is a server-side secret used to poll the token endpoint;
+		// it must not be returned to the client where it could be exposed via XSS.
 		writeJSON(w, http.StatusOK, map[string]any{
 			"user_code":        ghFlow.UserCode,
 			"verification_uri": ghFlow.VerificationURI,
-			"device_code":      ghFlow.DeviceCode,
 			"expires_in":       int(time.Until(ghFlow.ExpiresAt).Seconds()),
 		})
 	} else {
 		msFlow, err := auth.NewMicrosoftDeviceFlow("https://login.microsoftonline.com", "common")
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, fmt.Errorf("start microsoft device flow: %w", err).Error())
+			internalError(w, "start microsoft device flow", err)
 			return
 		}
 		pf = pendingFlow{
@@ -215,10 +230,10 @@ func (s *Server) authStart(w http.ResponseWriter, r *http.Request) {
 		s.flowMu.Unlock()
 
 		slog.Info("auth start: Microsoft device flow initiated", "source_id", id)
+		// device_code is a server-side secret; omit it from the client response.
 		writeJSON(w, http.StatusOK, map[string]any{
 			"user_code":        msFlow.UserCode,
 			"verification_uri": msFlow.VerificationURI,
-			"device_code":      msFlow.DeviceCode,
 			"expires_in":       int(time.Until(msFlow.ExpiresAt).Seconds()),
 		})
 	}
@@ -279,7 +294,7 @@ func (s *Server) authPoll(w http.ResponseWriter, r *http.Request) {
 
 	// Token received — save it and remove the pending flow.
 	if err := s.tokenStore.Save(id, pf.provider, token); err != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Errorf("save token: %w", err).Error())
+		internalError(w, "save token", err)
 		return
 	}
 	s.flowMu.Lock()
@@ -303,7 +318,7 @@ func (s *Server) authRevoke(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusNotFound, "source not found")
 			return
 		}
-		writeError(w, http.StatusInternalServerError, fmt.Errorf("get source: %w", err).Error())
+		internalError(w, "get source", err)
 		return
 	}
 
@@ -317,7 +332,7 @@ func (s *Server) authRevoke(w http.ResponseWriter, r *http.Request) {
 	for _, provider := range []string{"microsoft", "github"} {
 		if err := s.store.DeleteToken(id, provider); err != nil {
 			slog.Error("delete token", "source_id", id, "provider", provider, "err", err)
-			writeError(w, http.StatusInternalServerError, fmt.Errorf("delete token: %w", err).Error())
+			writeError(w, http.StatusInternalServerError, "internal server error")
 			return
 		}
 	}
