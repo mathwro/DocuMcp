@@ -39,7 +39,8 @@ func (a *GitHubAdapter) Crawl(ctx context.Context, src config.SourceConfig, sour
 	go func() {
 		defer close(ch)
 
-		token, _ := loadGitHubToken()
+		// src.Token is populated by the crawler from the token store.
+		token := src.Token
 		client := &http.Client{}
 
 		// Fetch the full git tree for the wiki (recursive=1 flattens the tree).
@@ -148,9 +149,4 @@ func fileToTitle(path string) string {
 	name = strings.ReplaceAll(name, "-", " ")
 	name = strings.ReplaceAll(name, "_", " ")
 	return name
-}
-
-// loadGitHubToken is a placeholder. Authentication is implemented in Task 15.
-func loadGitHubToken() (string, error) {
-	return "", nil
 }

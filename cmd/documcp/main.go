@@ -11,8 +11,10 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/documcp/documcp/internal/api"
+	"github.com/documcp/documcp/internal/auth"
 	"github.com/documcp/documcp/internal/config"
 	"github.com/documcp/documcp/internal/crawler"
 	"github.com/documcp/documcp/internal/db"
@@ -47,7 +49,13 @@ func main() {
 		}
 	}
 
-	c := crawler.New(store, embedder)
+	// Derive the encryption key and create the shared token store.
+	// The same key is used by both the API server (for OAuth flows) and the
+	// crawler (to load stored tokens at crawl time).
+	key := deriveKey()
+	tokenStore := auth.NewTokenStore(store, key)
+
+	c := crawler.New(store, embedder).WithTokenStore(tokenStore)
 	scheduler := crawler.NewScheduler(c, store)
 	scheduler.Load(cfg)
 
@@ -62,15 +70,22 @@ func main() {
 		defer watcher.Stop()
 	}
 
-	key := deriveKey()
-
 	mcpServer := mcp.NewServer(store, embedder)
 	apiServer := api.NewServer(store, c, mcpServer.Handler(), key)
+
+	// Warn if no API key is configured — the API and MCP endpoints are open.
+	api.LogAPIKeyWarning()
 
 	addr := fmt.Sprintf(":%d", cfg.Server.Port)
 	slog.Info("starting DocuMcp", "addr", addr)
 
-	srv := &http.Server{Addr: addr, Handler: apiServer}
+	srv := &http.Server{
+		Addr:         addr,
+		Handler:      apiServer,
+		ReadTimeout:  30 * time.Second,
+		WriteTimeout: 60 * time.Second,
+		IdleTimeout:  120 * time.Second,
+	}
 	go func() {
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			slog.Error("server", "err", err)
@@ -82,9 +97,17 @@ func main() {
 	<-quit
 	signal.Stop(quit) // deregister so a second SIGINT uses the default handler
 	slog.Info("shutting down")
-	if err := srv.Shutdown(context.Background()); err != nil {
+
+	// Cancel background crawls started via the API.
+	apiServer.Shutdown()
+
+	// Give active HTTP connections up to 30 s to finish.
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer shutdownCancel()
+	if err := srv.Shutdown(shutdownCtx); err != nil {
 		slog.Error("http shutdown", "err", err)
 	}
+
 	drainCtx := scheduler.Stop()
 	<-drainCtx.Done()
 }
@@ -93,6 +116,10 @@ func main() {
 // It reads DOCUMCP_SECRET_KEY (hex or base64-encoded 32 bytes). If the env
 // var is absent or invalid, a random ephemeral key is generated and a warning
 // is logged — tokens will not survive process restarts in that case.
+//
+// If the key changes between restarts, any tokens encrypted with the old key
+// will fail to decrypt. The crawler logs a clear error in that case and
+// proceeds unauthenticated; the user should re-authenticate via the UI.
 func deriveKey() []byte {
 	raw := os.Getenv("DOCUMCP_SECRET_KEY")
 	if raw != "" {
