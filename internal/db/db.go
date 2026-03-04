@@ -88,7 +88,7 @@ func (s *Store) InsertSource(src Source) (int64, error) {
 // ListSources returns all configured sources.
 func (s *Store) ListSources() ([]Source, error) {
 	rows, err := s.db.Query(
-		`SELECT id, name, type, url, repo, base_url, space_key, auth, crawl_schedule, page_count
+		`SELECT id, name, type, url, repo, base_url, space_key, auth, crawl_schedule, page_count, last_crawled
 		 FROM sources ORDER BY id`,
 	)
 	if err != nil {
@@ -101,7 +101,7 @@ func (s *Store) ListSources() ([]Source, error) {
 		var src Source
 		if err := rows.Scan(
 			&src.ID, &src.Name, &src.Type, &src.URL, &src.Repo,
-			&src.BaseURL, &src.SpaceKey, &src.Auth, &src.CrawlSchedule, &src.PageCount,
+			&src.BaseURL, &src.SpaceKey, &src.Auth, &src.CrawlSchedule, &src.PageCount, &src.LastCrawled,
 		); err != nil {
 			return nil, fmt.Errorf("scan source: %w", err)
 		}
@@ -114,11 +114,11 @@ func (s *Store) ListSources() ([]Source, error) {
 func (s *Store) GetSource(id int64) (*Source, error) {
 	var src Source
 	err := s.db.QueryRow(
-		`SELECT id, name, type, url, repo, base_url, space_key, auth, crawl_schedule, page_count
+		`SELECT id, name, type, url, repo, base_url, space_key, auth, crawl_schedule, page_count, last_crawled
 		 FROM sources WHERE id = ?`, id,
 	).Scan(
 		&src.ID, &src.Name, &src.Type, &src.URL, &src.Repo,
-		&src.BaseURL, &src.SpaceKey, &src.Auth, &src.CrawlSchedule, &src.PageCount,
+		&src.BaseURL, &src.SpaceKey, &src.Auth, &src.CrawlSchedule, &src.PageCount, &src.LastCrawled,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, fmt.Errorf("source %d: %w", id, ErrNotFound)

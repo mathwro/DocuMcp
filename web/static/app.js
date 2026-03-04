@@ -6,6 +6,8 @@ function app() {
     newSource: { Name: '', Type: 'web', URL: '', Repo: '', CrawlSchedule: '' },
     deviceCodePending: null, // { user_code, verification_uri, device_code, expires_in, sourceId }
     pollInterval: null,
+    crawlingIds: new Set(), // source IDs currently being crawled
+    refreshInterval: null,  // drives live page-count updates during crawl
 
     // Search state
     searchQuery: '',
@@ -20,10 +22,38 @@ function app() {
     async loadSources() {
       try {
         const r = await fetch('/api/sources')
-        this.sources = await r.json()
+        const fresh = await r.json()
+        // Detect crawl completion: crawlingId that now has a LastCrawled value
+        // different from what we stored when the crawl started.
+        for (const id of [...this.crawlingIds]) {
+          const src = fresh.find(s => s.ID === id)
+          if (src && src.LastCrawled) {
+            this.crawlingIds.delete(id)
+          }
+        }
+        this.sources = fresh
+        if (this.crawlingIds.size === 0) {
+          this.stopRefresh()
+        }
       } catch(e) {
         console.error('loadSources:', e)
       }
+    },
+
+    startRefresh() {
+      if (this.refreshInterval) return
+      this.refreshInterval = setInterval(() => this.loadSources(), 2000)
+    },
+
+    stopRefresh() {
+      if (this.refreshInterval) {
+        clearInterval(this.refreshInterval)
+        this.refreshInterval = null
+      }
+    },
+
+    isCrawling(id) {
+      return this.crawlingIds.has(id)
     },
 
     async addSource() {
@@ -44,8 +74,14 @@ function app() {
     },
 
     async crawlNow(id) {
-      await fetch(`/api/sources/${id}/crawl`, { method: 'POST' })
-      setTimeout(() => this.loadSources(), 1500)
+      const r = await fetch(`/api/sources/${id}/crawl`, { method: 'POST' })
+      if (r.ok) {
+        this.crawlingIds.add(id)
+        // Force-clear LastCrawled locally so we can detect when it's set fresh.
+        const src = this.sources.find(s => s.ID === id)
+        if (src) src.LastCrawled = null
+        this.startRefresh()
+      }
     },
 
     async connectAuth(id) {
@@ -95,6 +131,8 @@ function app() {
       try {
         const r = await fetch(`/api/sources/${id}`, { method: 'DELETE' })
         if (!r.ok) { alert('Failed to delete: ' + await r.text()); return }
+        this.crawlingIds.delete(id)
+        if (this.crawlingIds.size === 0) this.stopRefresh()
         await this.loadSources()
       } catch(e) {
         console.error('deleteSource:', e)
@@ -120,6 +158,11 @@ function app() {
     sourceTypeName(type) {
       const map = { web: 'Web', github_wiki: 'GitHub Wiki', azure_devops: 'Azure DevOps' }
       return map[type] || type
+    },
+
+    formatDate(ts) {
+      if (!ts) return ''
+      return new Date(ts).toLocaleString()
     }
   }
 }

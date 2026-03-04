@@ -96,6 +96,12 @@ func (c *Crawler) Crawl(ctx context.Context, src db.Source) error {
 			}
 		}
 		count++
+		// Flush progress to DB every 10 pages so the UI can poll it in real-time.
+		if count%10 == 0 {
+			if err := c.store.UpdateSourcePageCount(src.ID, count); err != nil {
+				slog.Warn("crawler: incremental page count update failed", "err", err)
+			}
+		}
 	}
 	return c.store.UpdateSourcePageCount(src.ID, count)
 }

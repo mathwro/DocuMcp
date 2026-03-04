@@ -70,17 +70,18 @@
           <div class="card-header">
             <div>
               <strong x-text="src.Name"></strong>
-              <span class="badge" :class="src.PageCount > 0 ? 'badge-ok' : 'badge-pending'"
-                    x-text="src.PageCount + ' pages'"></span>
+              <span class="badge" :class="isCrawling(src.ID) ? 'badge-crawling' : (src.PageCount > 0 ? 'badge-ok' : 'badge-pending')"
+                    x-text="isCrawling(src.ID) ? '⟳ crawling… ' + src.PageCount + ' pages' : src.PageCount + ' pages'"></span>
               <span class="badge badge-pending" x-text="sourceTypeName(src.Type)"></span>
             </div>
             <div class="actions">
               <button class="secondary" @click="connectAuth(src.ID)">Connect</button>
-              <button class="secondary" @click="crawlNow(src.ID)">Crawl Now</button>
+              <button class="secondary" @click="crawlNow(src.ID)" :disabled="isCrawling(src.ID)">Crawl Now</button>
               <button class="danger" @click="deleteSource(src.ID)">Remove</button>
             </div>
           </div>
-          <div class="muted" x-show="src.LastCrawled" x-text="'Last crawled: ' + src.LastCrawled"></div>
+          <div class="muted" x-show="src.LastCrawled" x-text="'Last crawled: ' + formatDate(src.LastCrawled)"></div>
+          <div class="muted" x-show="!src.LastCrawled && !isCrawling(src.ID)">Never crawled</div>
         </div>
       </template>
     </div>
