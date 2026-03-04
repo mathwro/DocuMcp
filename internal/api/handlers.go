@@ -61,15 +61,27 @@ func parseID(w http.ResponseWriter, r *http.Request) (int64, bool) {
 	return id, true
 }
 
+// sourceResponse wraps db.Source with a server-side Crawling flag.
+type sourceResponse struct {
+	db.Source
+	Crawling bool `json:"Crawling"`
+}
+
 // listSources handles GET /api/sources.
-// Returns a JSON array of all db.Source records.
+// Returns a JSON array of all db.Source records, with a Crawling flag per source.
 func (s *Server) listSources(w http.ResponseWriter, r *http.Request) {
 	sources, err := s.store.ListSources()
 	if err != nil {
 		internalError(w, "list sources", err)
 		return
 	}
-	writeJSON(w, http.StatusOK, sources)
+	s.crawlingMu.Lock()
+	result := make([]sourceResponse, len(sources))
+	for i, src := range sources {
+		result[i] = sourceResponse{Source: src, Crawling: s.crawlingIDs[src.ID]}
+	}
+	s.crawlingMu.Unlock()
+	writeJSON(w, http.StatusOK, result)
 }
 
 // createSource handles POST /api/sources.
@@ -141,12 +153,17 @@ func (s *Server) triggerCrawl(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if s.crawler != nil {
-		// Use the server's context so the goroutine is cancelled on shutdown.
+		s.crawlingMu.Lock()
+		s.crawlingIDs[id] = true
+		s.crawlingMu.Unlock()
 		crawlCtx := s.ctx
 		go func() {
 			if err := s.crawler.Crawl(crawlCtx, *src); err != nil {
 				slog.Error("background crawl failed", "source_id", id, "err", err)
 			}
+			s.crawlingMu.Lock()
+			delete(s.crawlingIDs, id)
+			s.crawlingMu.Unlock()
 		}()
 	}
 

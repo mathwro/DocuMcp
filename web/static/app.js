@@ -4,10 +4,9 @@ function app() {
     sources: [],
     showAddForm: false,
     newSource: { Name: '', Type: 'web', URL: '', Repo: '', CrawlSchedule: '' },
-    deviceCodePending: null, // { user_code, verification_uri, device_code, expires_in, sourceId }
+    deviceCodePending: null,
     pollInterval: null,
-    crawlingIds: new Set(), // source IDs currently being crawled
-    refreshInterval: null,  // drives live page-count updates during crawl
+    refreshInterval: null,
 
     // Search state
     searchQuery: '',
@@ -22,17 +21,11 @@ function app() {
     async loadSources() {
       try {
         const r = await fetch('/api/sources')
-        const fresh = await r.json()
-        // Detect crawl completion: crawlingId that now has a LastCrawled value
-        // different from what we stored when the crawl started.
-        for (const id of [...this.crawlingIds]) {
-          const src = fresh.find(s => s.ID === id)
-          if (src && src.LastCrawled) {
-            this.crawlingIds.delete(id)
-          }
-        }
-        this.sources = fresh
-        if (this.crawlingIds.size === 0) {
+        this.sources = await r.json()
+        // Keep polling while any source is crawling; stop when all done.
+        if (this.sources.some(s => s.Crawling)) {
+          this.startRefresh()
+        } else {
           this.stopRefresh()
         }
       } catch(e) {
@@ -52,8 +45,8 @@ function app() {
       }
     },
 
-    isCrawling(id) {
-      return this.crawlingIds.has(id)
+    isCrawling(src) {
+      return src.Crawling
     },
 
     async addSource() {
@@ -74,14 +67,8 @@ function app() {
     },
 
     async crawlNow(id) {
-      const r = await fetch(`/api/sources/${id}/crawl`, { method: 'POST' })
-      if (r.ok) {
-        this.crawlingIds.add(id)
-        // Force-clear LastCrawled locally so we can detect when it's set fresh.
-        const src = this.sources.find(s => s.ID === id)
-        if (src) src.LastCrawled = null
-        this.startRefresh()
-      }
+      await fetch(`/api/sources/${id}/crawl`, { method: 'POST' })
+      await this.loadSources()
     },
 
     async connectAuth(id) {

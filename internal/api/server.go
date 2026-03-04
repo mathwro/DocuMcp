@@ -35,6 +35,8 @@ type Server struct {
 	tokenStore   *auth.TokenStore
 	pendingFlows map[int64]*pendingFlow
 	flowMu       sync.Mutex
+	crawlingIDs  map[int64]bool // source IDs with an active crawl goroutine
+	crawlingMu   sync.Mutex
 	cancel       context.CancelFunc // cancels background work on Shutdown
 	ctx          context.Context    // cancelled when Shutdown is called
 }
@@ -51,6 +53,7 @@ func NewServer(store *db.Store, c *crawler.Crawler, mcpHandler http.Handler, key
 		mux:          http.NewServeMux(),
 		tokenStore:   auth.NewTokenStore(store, key),
 		pendingFlows: make(map[int64]*pendingFlow),
+		crawlingIDs:  make(map[int64]bool),
 		ctx:          ctx,
 		cancel:       cancel,
 	}
