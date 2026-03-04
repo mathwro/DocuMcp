@@ -41,6 +41,9 @@ func (a *WebAdapter) Crawl(ctx context.Context, src config.SourceConfig, sourceI
 	if err != nil {
 		return nil, fmt.Errorf("web adapter: parse source URL: %w", err)
 	}
+	if !isAllowedHost(base) {
+		return nil, fmt.Errorf("web adapter: source URL %q resolves to a blocked host", src.URL)
+	}
 
 	ch := make(chan db.Page, 10)
 

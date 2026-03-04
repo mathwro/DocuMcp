@@ -27,7 +27,7 @@ func New(modelPath string) (*Embedder, error) {
 		ModelPath:    modelPath,
 		Name:         "embedder",
 		OnnxFilename: "model.onnx",
-		Normalize:    true,
+		Options:      []hugot.FeatureExtractionOption{pipelines.WithNormalization()},
 	})
 	if err != nil {
 		_ = session.Destroy()

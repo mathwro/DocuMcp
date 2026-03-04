@@ -331,8 +331,7 @@ func (s *Server) authRevoke(w http.ResponseWriter, r *http.Request) {
 	// a no-op delete (row never existed) is fine and returns nil from DeleteToken.
 	for _, provider := range []string{"microsoft", "github"} {
 		if err := s.store.DeleteToken(id, provider); err != nil {
-			slog.Error("delete token", "source_id", id, "provider", provider, "err", err)
-			writeError(w, http.StatusInternalServerError, "internal server error")
+			internalError(w, "delete token", err)
 			return
 		}
 	}

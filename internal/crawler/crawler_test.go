@@ -2,13 +2,29 @@ package crawler_test
 
 import (
 	"context"
-	"net/http"
-	"net/http/httptest"
 	"testing"
 
+	"github.com/documcp/documcp/internal/adapter"
+	"github.com/documcp/documcp/internal/config"
 	"github.com/documcp/documcp/internal/crawler"
 	"github.com/documcp/documcp/internal/db"
 )
+
+// stubAdapter is a test-only adapter that returns a fixed set of pages without
+// making real HTTP requests, avoiding the web adapter's SSRF protection.
+type stubAdapter struct{}
+
+func (s *stubAdapter) NeedsAuth(_ config.SourceConfig) bool { return false }
+func (s *stubAdapter) Crawl(_ context.Context, _ config.SourceConfig, sourceID int64) (<-chan db.Page, error) {
+	ch := make(chan db.Page, 2)
+	ch <- db.Page{SourceID: sourceID, URL: "http://example.test/page1", Title: "Test Page", Content: "Content here."}
+	close(ch)
+	return ch, nil
+}
+
+func init() {
+	adapter.Register("stub", &stubAdapter{})
+}
 
 func TestCrawler_IndexesPages(t *testing.T) {
 	store, err := db.Open(":memory:")
@@ -17,25 +33,13 @@ func TestCrawler_IndexesPages(t *testing.T) {
 	}
 	defer store.Close()
 
-	// Use a closure to reference srv.URL after server is created
-	var srvURL string
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/sitemap.xml" {
-			w.Write([]byte(`<?xml version="1.0"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>` + srvURL + `/page1</loc></url></urlset>`))
-			return
-		}
-		w.Write([]byte(`<html><body><h1>Test Page</h1><p>Content here.</p></body></html>`))
-	}))
-	defer srv.Close()
-	srvURL = srv.URL
-
-	srcID, err := store.InsertSource(db.Source{Name: "Test", Type: "web", URL: srv.URL})
+	srcID, err := store.InsertSource(db.Source{Name: "Test", Type: "stub", URL: "http://example.test"})
 	if err != nil {
 		t.Fatalf("InsertSource: %v", err)
 	}
 
 	c := crawler.New(store, nil) // nil embedder = skip embeddings
-	err = c.Crawl(context.Background(), db.Source{ID: srcID, Type: "web", URL: srv.URL})
+	err = c.Crawl(context.Background(), db.Source{ID: srcID, Type: "stub", URL: "http://example.test"})
 	if err != nil {
 		t.Fatalf("Crawl: %v", err)
 	}
