@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -49,15 +50,11 @@ func (a *WebAdapter) Crawl(ctx context.Context, src config.SourceConfig, sourceI
 
 	go func() {
 		defer close(ch)
-		sitemapURL := strings.TrimRight(src.URL, "/") + "/sitemap.xml"
-		allURLs, err := ParseSitemap(ctx, sitemapURL, crawlClient)
-		if err != nil || len(allURLs) == 0 {
-			// Fallback: just crawl the root URL
-			allURLs = []string{src.URL}
-		}
+		// Try a path-relative sitemap first, then fall back to a host-root sitemap.
+		allURLs := discoverSitemapURLs(ctx, src.URL, base)
 
-		// Filter sitemap URLs: must share the same origin as the configured source
-		// URL and must not resolve to a blocked (SSRF-risk) host.
+		// Filter: same origin + path prefix match + SSRF-safe host.
+		basePath := strings.TrimRight(base.Path, "/") + "/"
 		urls := make([]string, 0, len(allURLs))
 		for _, u := range allURLs {
 			parsed, parseErr := url.Parse(u)
@@ -67,6 +64,9 @@ func (a *WebAdapter) Crawl(ctx context.Context, src config.SourceConfig, sourceI
 			if !sameOrigin(parsed, base) {
 				slog.Warn("web: skipping cross-origin sitemap URL", "url", u, "base", src.URL)
 				continue
+			}
+			if !strings.HasPrefix(parsed.Path, basePath) && parsed.Path != strings.TrimRight(base.Path, "/") {
+				continue // different doc version or section; skip silently
 			}
 			if !isAllowedHost(parsed) {
 				slog.Warn("web: skipping blocked host in sitemap URL", "url", u)
@@ -80,7 +80,7 @@ func (a *WebAdapter) Crawl(ctx context.Context, src config.SourceConfig, sourceI
 
 		visited := map[string]bool{}
 
-		for _, pageURL := range urls {
+		for i, pageURL := range urls {
 			select {
 			case <-ctx.Done():
 				return
@@ -90,6 +90,15 @@ func (a *WebAdapter) Crawl(ctx context.Context, src config.SourceConfig, sourceI
 				continue
 			}
 			visited[pageURL] = true
+
+			// Polite crawl delay after the first page to avoid rate-limiting.
+			if i > 0 {
+				select {
+				case <-ctx.Done():
+					return
+				case <-time.After(500 * time.Millisecond):
+				}
+			}
 
 			page, err := fetchPage(ctx, crawlClient, pageURL, sourceID, base)
 			if err != nil {
@@ -102,16 +111,55 @@ func (a *WebAdapter) Crawl(ctx context.Context, src config.SourceConfig, sourceI
 	return ch, nil
 }
 
+const crawlUserAgent = "DocuMcp/1.0 (documentation indexer; +https://github.com/documcp/documcp)"
+
 func fetchPage(ctx context.Context, client *http.Client, pageURL string, sourceID int64, base *url.URL) (db.Page, error) {
 	req, err := http.NewRequestWithContext(ctx, "GET", pageURL, nil)
 	if err != nil {
 		return db.Page{}, fmt.Errorf("build request for %s: %w", pageURL, err)
 	}
+	req.Header.Set("User-Agent", crawlUserAgent)
 	resp, err := client.Do(req)
 	if err != nil {
 		return db.Page{}, fmt.Errorf("fetch %s: %w", pageURL, err)
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusTooManyRequests {
+		// Honour Retry-After if present (seconds or HTTP-date).
+		delay := 10 * time.Second
+		if ra := resp.Header.Get("Retry-After"); ra != "" {
+			if secs, parseErr := strconv.Atoi(ra); parseErr == nil {
+				delay = time.Duration(secs) * time.Second
+			}
+		}
+		// Cap at 60 s to avoid stalling the crawl indefinitely.
+		if delay > 60*time.Second {
+			delay = 60 * time.Second
+		}
+		slog.Warn("web: rate limited, backing off", "url", pageURL, "delay", delay)
+		select {
+		case <-ctx.Done():
+			return db.Page{}, ctx.Err()
+		case <-time.After(delay):
+		}
+		// Retry once after the back-off.
+		req2, _ := http.NewRequestWithContext(ctx, "GET", pageURL, nil)
+		req2.Header.Set("User-Agent", crawlUserAgent)
+		resp2, err2 := client.Do(req2)
+		if err2 != nil {
+			return db.Page{}, fmt.Errorf("fetch %s (retry): %w", pageURL, err2)
+		}
+		defer resp2.Body.Close()
+		if resp2.StatusCode != http.StatusOK {
+			return db.Page{}, fmt.Errorf("non-200 from %s (retry): %d", pageURL, resp2.StatusCode)
+		}
+		title, content := ExtractText(resp2.Body)
+		if title == "" {
+			title = pageURL
+		}
+		u, _ := url.Parse(pageURL)
+		return db.Page{SourceID: sourceID, URL: pageURL, Title: title, Content: content, Path: urlToPath(u, base)}, nil
+	}
 	if resp.StatusCode != http.StatusOK {
 		return db.Page{}, fmt.Errorf("non-200 from %s: %d", pageURL, resp.StatusCode)
 	}
@@ -131,6 +179,30 @@ func fetchPage(ctx context.Context, client *http.Client, pageURL string, sourceI
 		Content:  content,
 		Path:     path,
 	}, nil
+}
+
+// discoverSitemapURLs tries to find a sitemap for the given source URL.
+// It attempts (1) <src>/sitemap.xml and (2) <origin>/sitemap.xml, returning
+// the first non-empty result. Returns nil if neither is found.
+func discoverSitemapURLs(ctx context.Context, srcURL string, base *url.URL) []string {
+	candidates := []string{
+		strings.TrimRight(srcURL, "/") + "/sitemap.xml",
+		base.Scheme + "://" + base.Host + "/sitemap.xml",
+	}
+	// Deduplicate (e.g. when source URL is already at the root).
+	seen := map[string]bool{}
+	for _, candidate := range candidates {
+		if seen[candidate] {
+			continue
+		}
+		seen[candidate] = true
+		urls, err := ParseSitemap(ctx, candidate, crawlClient)
+		if err == nil && len(urls) > 0 {
+			slog.Info("web: sitemap found", "url", candidate, "count", len(urls))
+			return urls
+		}
+	}
+	return nil
 }
 
 func urlToPath(u, base *url.URL) []string {

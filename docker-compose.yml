@@ -1,7 +1,6 @@
 services:
   documcp:
-    build: .
-    image: ghcr.io/documcp/documcp:latest
+    image: documcp:local
     ports:
       - "8080:8080"
     volumes:
@@ -15,9 +14,9 @@ services:
       - DOCUMCP_CONFIG=/app/config.yaml
       - DOCUMCP_MODEL_PATH=/app/models/all-MiniLM-L6-v2
       # REQUIRED for persistent encrypted token storage across restarts.
-      # Generate with: openssl rand -hex 32
+      # Generate with: openssl rand -hex 32 and set in .env file.
       # If unset, a random key is generated per-run and stored tokens are lost on restart.
-      - DOCUMCP_SECRET_KEY=
+      - DOCUMCP_SECRET_KEY=${DOCUMCP_SECRET_KEY}
 
 volumes:
   documcp_data:

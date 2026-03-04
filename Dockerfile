@@ -17,14 +17,10 @@ FROM python:3.12-slim AS model-downloader
 # Check https://github.com/huggingface/optimum for latest stable version.
 RUN pip install --no-cache-dir "optimum[onnxruntime]"
 
-RUN python -c "
-from optimum.exporters.onnx import main_export
-main_export(
-    'sentence-transformers/all-MiniLM-L6-v2',
-    output='/models/all-MiniLM-L6-v2',
-    task='feature-extraction',
-)
-"
+RUN optimum-cli export onnx \
+    --model sentence-transformers/all-MiniLM-L6-v2 \
+    --task feature-extraction \
+    /models/all-MiniLM-L6-v2
 
 # Stage 3: Minimal runtime image
 FROM debian:bookworm-slim
