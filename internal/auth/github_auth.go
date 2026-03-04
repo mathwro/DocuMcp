@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -134,25 +135,10 @@ func LoadGitHubTokenFromCLI() (string, error) {
 		return "", fmt.Errorf("read gh hosts: %w", err)
 	}
 	const marker = "  oauth_token: "
-	for _, line := range splitLines(string(data)) {
+	for _, line := range strings.Split(string(data), "\n") {
 		if len(line) > len(marker) && line[:len(marker)] == marker {
 			return line[len(marker):], nil
 		}
 	}
 	return "", nil
-}
-
-func splitLines(s string) []string {
-	var lines []string
-	start := 0
-	for i := 0; i < len(s); i++ {
-		if s[i] == '\n' {
-			lines = append(lines, s[start:i])
-			start = i + 1
-		}
-	}
-	if start < len(s) {
-		lines = append(lines, s[start:])
-	}
-	return lines
 }

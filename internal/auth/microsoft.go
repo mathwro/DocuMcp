@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"strings"
 	"time"
 )
 
@@ -50,7 +49,7 @@ func NewMicrosoftDeviceFlow(baseURL, tenant string) (*MicrosoftDeviceFlow, error
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return nil, fmt.Errorf("decode device code response: %w", err)
 	}
-	tokenEndpoint := strings.Replace(endpoint, "/devicecode", "/token", 1)
+	tokenEndpoint := fmt.Sprintf("%s/%s/oauth2/v2.0/token", baseURL, tenant)
 	return &MicrosoftDeviceFlow{
 		DeviceCode:      result.DeviceCode,
 		UserCode:        result.UserCode,

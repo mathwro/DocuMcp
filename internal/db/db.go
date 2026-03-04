@@ -163,26 +163,28 @@ func (s *Store) UpdateSourcePageCount(id int64, count int) error {
 	return nil
 }
 
-// UpsertPage inserts or updates a page by URL.
-func (s *Store) UpsertPage(p Page) error {
+// UpsertPage inserts or updates a page by URL and returns the page's row ID.
+func (s *Store) UpsertPage(p Page) (int64, error) {
 	pathJSON, err := json.Marshal(p.Path)
 	if err != nil {
-		return fmt.Errorf("marshal path: %w", err)
+		return 0, fmt.Errorf("marshal path: %w", err)
 	}
-	_, err = s.db.Exec(
+	var id int64
+	err = s.db.QueryRow(
 		`INSERT INTO pages (source_id, url, title, content, path)
 		 VALUES (?, ?, ?, ?, ?)
 		 ON CONFLICT(url) DO UPDATE SET
-		   title     = excluded.title,
-		   content   = excluded.content,
-		   path      = excluded.path,
-		   updated_at = CURRENT_TIMESTAMP`,
+		   title      = excluded.title,
+		   content    = excluded.content,
+		   path       = excluded.path,
+		   updated_at = CURRENT_TIMESTAMP
+		 RETURNING id`,
 		p.SourceID, p.URL, p.Title, p.Content, string(pathJSON),
-	)
+	).Scan(&id)
 	if err != nil {
-		return fmt.Errorf("upsert page %q: %w", p.URL, err)
+		return 0, fmt.Errorf("upsert page %q: %w", p.URL, err)
 	}
-	return nil
+	return id, nil
 }
 
 // GetPageByURL returns a page by its URL.

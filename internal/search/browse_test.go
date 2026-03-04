@@ -25,13 +25,13 @@ func setupBrowseDB(t *testing.T) (*db.Store, int64) {
 func TestBrowseTopLevel(t *testing.T) {
 	store, srcID := setupBrowseDB(t)
 
-	if err := store.UpsertPage(db.Page{SourceID: srcID, URL: "u1", Title: "Auth Overview", Path: []string{"Authentication", "Auth Overview"}}); err != nil {
+	if _, err := store.UpsertPage(db.Page{SourceID: srcID, URL: "u1", Title: "Auth Overview", Path: []string{"Authentication", "Auth Overview"}}); err != nil {
 		t.Fatalf("UpsertPage: %v", err)
 	}
-	if err := store.UpsertPage(db.Page{SourceID: srcID, URL: "u2", Title: "OAuth Setup", Path: []string{"Authentication", "OAuth Setup"}}); err != nil {
+	if _, err := store.UpsertPage(db.Page{SourceID: srcID, URL: "u2", Title: "OAuth Setup", Path: []string{"Authentication", "OAuth Setup"}}); err != nil {
 		t.Fatalf("UpsertPage: %v", err)
 	}
-	if err := store.UpsertPage(db.Page{SourceID: srcID, URL: "u3", Title: "Docker Guide", Path: []string{"Deployment", "Docker Guide"}}); err != nil {
+	if _, err := store.UpsertPage(db.Page{SourceID: srcID, URL: "u3", Title: "Docker Guide", Path: []string{"Deployment", "Docker Guide"}}); err != nil {
 		t.Fatalf("UpsertPage: %v", err)
 	}
 
@@ -58,13 +58,13 @@ func TestBrowseTopLevel(t *testing.T) {
 func TestBrowseSection(t *testing.T) {
 	store, srcID := setupBrowseDB(t)
 
-	if err := store.UpsertPage(db.Page{SourceID: srcID, URL: "u1", Title: "Auth Overview", Path: []string{"Authentication", "Auth Overview"}}); err != nil {
+	if _, err := store.UpsertPage(db.Page{SourceID: srcID, URL: "u1", Title: "Auth Overview", Path: []string{"Authentication", "Auth Overview"}}); err != nil {
 		t.Fatalf("UpsertPage: %v", err)
 	}
-	if err := store.UpsertPage(db.Page{SourceID: srcID, URL: "u2", Title: "OAuth Setup", Path: []string{"Authentication", "OAuth Setup"}}); err != nil {
+	if _, err := store.UpsertPage(db.Page{SourceID: srcID, URL: "u2", Title: "OAuth Setup", Path: []string{"Authentication", "OAuth Setup"}}); err != nil {
 		t.Fatalf("UpsertPage: %v", err)
 	}
-	if err := store.UpsertPage(db.Page{SourceID: srcID, URL: "u3", Title: "Docker Guide", Path: []string{"Deployment", "Docker Guide"}}); err != nil {
+	if _, err := store.UpsertPage(db.Page{SourceID: srcID, URL: "u3", Title: "Docker Guide", Path: []string{"Deployment", "Docker Guide"}}); err != nil {
 		t.Fatalf("UpsertPage: %v", err)
 	}
 
@@ -99,7 +99,7 @@ func TestBrowseTopLevel_EmptySource(t *testing.T) {
 func TestBrowseSection_NoMatch(t *testing.T) {
 	store, srcID := setupBrowseDB(t)
 
-	if err := store.UpsertPage(db.Page{SourceID: srcID, URL: "u1", Title: "Auth Overview", Path: []string{"Authentication", "Auth Overview"}}); err != nil {
+	if _, err := store.UpsertPage(db.Page{SourceID: srcID, URL: "u1", Title: "Auth Overview", Path: []string{"Authentication", "Auth Overview"}}); err != nil {
 		t.Fatalf("UpsertPage: %v", err)
 	}
 
