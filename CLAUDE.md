@@ -34,12 +34,13 @@ docs/plans/         # Design doc + implementation plan
 - **Empty slices:** return `make([]T, 0)` not `nil` for list operations
 - **Tests:** always check setup errors with `t.Fatalf`, not `_`
 - **FTS5 bm25:** returns negative values — `ORDER BY score ASC` = best first
-
-## Implementation Plan
-`docs/plans/2026-02-27-documcp-implementation.md` — 27 tasks, progress tracker at top.
-
-**Completed:** All 27 tasks (foundation, search, adapters, auth, crawler, MCP server, REST API, Web UI, main binary, Dockerfile, Makefile)
-**Status:** Implementation complete.
+- **DB migrations:** add new columns via `_, _ = db.Exec("ALTER TABLE ... ADD COLUMN ...")` in `Open()` after the schema exec — errors silently ignored (idempotent)
+- **Adapter interface:** `Crawl` returns `(int, <-chan db.Page, error)` — first value is total URL count (0 if unknown)
+- **sourceToConfig:** when adding fields to `db.Source`, always add them to `sourceToConfig` in `crawler.go` too
+- **Alpine.js:** load `app.js` before `alpinejs.min.js` (defer order matters); CSP includes `unsafe-eval` for Alpine expression evaluation
+- **Web adapter SSRF:** `isAllowedHost()` blocks loopback/private IPs — use stub adapters in tests, not `httptest.NewServer`
+- **HTML extraction:** `skipTags` in `extract.go` excludes script/style/noscript/iframe/nav/footer/header/aside; title prefers h1, falls back to `<title>` tag (keeps longer side of ` | ` split)
+- **Search snippets:** HTML tags stripped via regex in `scanResults` before returning results
 
 ## Architecture Decisions
 - Single Go binary — MCP server + Web UI + REST API + crawlers in one process
@@ -50,3 +51,16 @@ docs/plans/         # Design doc + implementation plan
 - Azure CLI client ID `04b07795-8ddb-461a-bbee-02f9e1bf7b46` for Microsoft flows
 - Config file is source of truth; Web UI reads/writes it; watcher reloads without restart
 - Tokens stored AES-256-GCM encrypted in SQLite, never in config file
+- Crawl progress tracked server-side (`crawlingIDs map[int64]bool` in API server); `CrawlTotal` stored in DB at crawl start, `PageCount` reset to 0 and flushed every 10 pages
+- `include_path` field on web sources restricts crawling to a URL prefix; validated same-origin; forwarded through `sourceToConfig`
+- Web adapter discovers URLs synchronously before goroutine so total count is known upfront
+- Alpine.js vendored at `web/static/alpinejs.min.js` (no CDN); CSP: `script-src 'self' 'unsafe-inline' 'unsafe-eval'`
+
+## Status
+All 27 original tasks complete. Post-launch improvements committed to `main`:
+- Security fixes (PR #4), code quality fixes (PR #5)
+- Polite web crawler: 500ms delay, User-Agent, 429/Retry-After handling
+- Sitemap discovery: tries `<src>/sitemap.xml` then `<origin>/sitemap.xml`
+- Live crawl progress UI: `N / Total pages` badge with 2s polling
+- Search UI: clickable result titles, HTML-stripped snippets, page title from `<title>` tag
+- `include_path` field for web sources (path-prefix filtering)
