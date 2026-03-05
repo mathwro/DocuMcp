@@ -134,5 +134,6 @@ func sourceToConfig(src db.Source) config.SourceConfig {
 		BaseURL:       src.BaseURL,
 		SpaceKey:      src.SpaceKey,
 		CrawlSchedule: src.CrawlSchedule,
+		IncludePath:   src.IncludePath,
 	}
 }
