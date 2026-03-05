@@ -23,7 +23,8 @@ type SourceConfig struct {
 	// github_wiki
 	Repo string `yaml:"repo,omitempty"`
 	// web
-	URL  string `yaml:"url,omitempty"`
+	URL         string `yaml:"url,omitempty"`
+	IncludePath string `yaml:"include_path,omitempty"`
 	Auth string `yaml:"auth,omitempty"`
 	// confluence
 	BaseURL  string `yaml:"base_url,omitempty"`
