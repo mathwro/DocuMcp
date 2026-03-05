@@ -33,7 +33,7 @@ func (a *AzureDevOpsAdapter) NeedsAuth(_ config.SourceConfig) bool { return true
 // Crawl fetches all wiki pages from Azure DevOps and streams them to the
 // returned channel. The channel is closed when crawling finishes or ctx is
 // cancelled.
-func (a *AzureDevOpsAdapter) Crawl(ctx context.Context, src config.SourceConfig, sourceID int64) (<-chan db.Page, error) {
+func (a *AzureDevOpsAdapter) Crawl(ctx context.Context, src config.SourceConfig, sourceID int64) (int, <-chan db.Page, error) {
 	ch := make(chan db.Page, 10)
 	go func() {
 		defer close(ch)
@@ -108,7 +108,7 @@ func (a *AzureDevOpsAdapter) Crawl(ctx context.Context, src config.SourceConfig,
 			}
 		}
 	}()
-	return ch, nil
+	return 0, ch, nil
 }
 
 // fetchPageContent retrieves the markdown content of a single wiki page.

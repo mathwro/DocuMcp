@@ -78,9 +78,17 @@ func (c *Crawler) Crawl(ctx context.Context, src db.Source) error {
 		}
 	}
 
-	pages, err := a.Crawl(ctx, cfgSrc, src.ID)
+	total, pages, err := a.Crawl(ctx, cfgSrc, src.ID)
 	if err != nil {
 		return fmt.Errorf("crawl: %w", err)
+	}
+
+	// Reset progress counters so the UI shows 0/total at crawl start.
+	if err := c.store.UpdateSourceCrawlTotal(src.ID, total); err != nil {
+		slog.Warn("crawler: set crawl total failed", "err", err)
+	}
+	if err := c.store.UpdateSourcePageCount(src.ID, 0); err != nil {
+		slog.Warn("crawler: reset page count failed", "err", err)
 	}
 
 	count := 0

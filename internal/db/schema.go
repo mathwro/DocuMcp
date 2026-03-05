@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS sources (
     crawl_schedule TEXT NOT NULL DEFAULT '',
     last_crawled   DATETIME,
     page_count     INTEGER NOT NULL DEFAULT 0,
+    crawl_total    INTEGER NOT NULL DEFAULT 0,
     created_at     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 

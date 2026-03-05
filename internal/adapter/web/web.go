@@ -33,50 +33,51 @@ func (a *WebAdapter) NeedsAuth(src config.SourceConfig) bool {
 	return src.Auth != ""
 }
 
-func (a *WebAdapter) Crawl(ctx context.Context, src config.SourceConfig, sourceID int64) (<-chan db.Page, error) {
+func (a *WebAdapter) Crawl(ctx context.Context, src config.SourceConfig, sourceID int64) (int, <-chan db.Page, error) {
 	if src.URL == "" {
-		return nil, fmt.Errorf("web adapter: source URL is required")
+		return 0, nil, fmt.Errorf("web adapter: source URL is required")
 	}
 
 	base, err := url.Parse(src.URL)
 	if err != nil {
-		return nil, fmt.Errorf("web adapter: parse source URL: %w", err)
+		return 0, nil, fmt.Errorf("web adapter: parse source URL: %w", err)
 	}
 	if !isAllowedHost(base) {
-		return nil, fmt.Errorf("web adapter: source URL %q resolves to a blocked host", src.URL)
+		return 0, nil, fmt.Errorf("web adapter: source URL %q resolves to a blocked host", src.URL)
 	}
 
+	// Discover and filter URLs before starting the goroutine so we can return
+	// the total count to the caller for progress tracking.
+	allURLs := discoverSitemapURLs(ctx, src.URL, base)
+	basePath := strings.TrimRight(base.Path, "/") + "/"
+	urls := make([]string, 0, len(allURLs))
+	for _, u := range allURLs {
+		parsed, parseErr := url.Parse(u)
+		if parseErr != nil {
+			continue
+		}
+		if !sameOrigin(parsed, base) {
+			slog.Warn("web: skipping cross-origin sitemap URL", "url", u, "base", src.URL)
+			continue
+		}
+		if !strings.HasPrefix(parsed.Path, basePath) && parsed.Path != strings.TrimRight(base.Path, "/") {
+			continue
+		}
+		if !isAllowedHost(parsed) {
+			slog.Warn("web: skipping blocked host in sitemap URL", "url", u)
+			continue
+		}
+		urls = append(urls, u)
+	}
+	if len(urls) == 0 {
+		urls = []string{src.URL}
+	}
+
+	total := len(urls)
 	ch := make(chan db.Page, 10)
 
 	go func() {
 		defer close(ch)
-		// Try a path-relative sitemap first, then fall back to a host-root sitemap.
-		allURLs := discoverSitemapURLs(ctx, src.URL, base)
-
-		// Filter: same origin + path prefix match + SSRF-safe host.
-		basePath := strings.TrimRight(base.Path, "/") + "/"
-		urls := make([]string, 0, len(allURLs))
-		for _, u := range allURLs {
-			parsed, parseErr := url.Parse(u)
-			if parseErr != nil {
-				continue
-			}
-			if !sameOrigin(parsed, base) {
-				slog.Warn("web: skipping cross-origin sitemap URL", "url", u, "base", src.URL)
-				continue
-			}
-			if !strings.HasPrefix(parsed.Path, basePath) && parsed.Path != strings.TrimRight(base.Path, "/") {
-				continue // different doc version or section; skip silently
-			}
-			if !isAllowedHost(parsed) {
-				slog.Warn("web: skipping blocked host in sitemap URL", "url", u)
-				continue
-			}
-			urls = append(urls, u)
-		}
-		if len(urls) == 0 {
-			urls = []string{src.URL}
-		}
 
 		visited := map[string]bool{}
 
@@ -108,7 +109,7 @@ func (a *WebAdapter) Crawl(ctx context.Context, src config.SourceConfig, sourceI
 			ch <- page
 		}
 	}()
-	return ch, nil
+	return total, ch, nil
 }
 
 const crawlUserAgent = "DocuMcp/1.0 (documentation indexer; +https://github.com/documcp/documcp)"

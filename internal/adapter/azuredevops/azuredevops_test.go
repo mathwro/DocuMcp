@@ -34,7 +34,7 @@ func TestAzureDevOpsAdapter_CrawlsWikiPages(t *testing.T) {
 	defer srv.Close()
 
 	a := azuredevops.NewAdapter(srv.URL)
-	ch, err := a.Crawl(context.Background(), config.SourceConfig{
+	_, ch, err := a.Crawl(context.Background(), config.SourceConfig{
 		Type:     "azure_devops",
 		BaseURL:  srv.URL,
 		SpaceKey: "myorg/myproject/_apis/wiki/wikis/mywiki",

@@ -11,7 +11,8 @@ import (
 type Adapter interface {
 	// Crawl fetches all pages from the source and sends them to the returned channel.
 	// The channel is closed when crawling is complete or ctx is cancelled.
-	Crawl(ctx context.Context, source config.SourceConfig, sourceID int64) (<-chan db.Page, error)
+	// The first return value is the total number of URLs to be crawled (0 if unknown).
+	Crawl(ctx context.Context, source config.SourceConfig, sourceID int64) (int, <-chan db.Page, error)
 	// NeedsAuth returns true if the source requires authentication before crawling.
 	NeedsAuth(source config.SourceConfig) bool
 }

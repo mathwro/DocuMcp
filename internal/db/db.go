@@ -38,6 +38,7 @@ type Source struct {
 	CrawlSchedule string
 	LastCrawled   *time.Time
 	PageCount     int
+	CrawlTotal    int
 }
 
 // Page represents an indexed documentation page.
@@ -63,6 +64,8 @@ func Open(dsn string) (*Store, error) {
 		db.Close()
 		return nil, fmt.Errorf("apply schema: %w", err)
 	}
+	// Migrations for columns added after initial release.
+	_, _ = db.Exec(`ALTER TABLE sources ADD COLUMN crawl_total INTEGER NOT NULL DEFAULT 0`)
 	return &Store{db: db}, nil
 }
 
@@ -88,7 +91,7 @@ func (s *Store) InsertSource(src Source) (int64, error) {
 // ListSources returns all configured sources.
 func (s *Store) ListSources() ([]Source, error) {
 	rows, err := s.db.Query(
-		`SELECT id, name, type, url, repo, base_url, space_key, auth, crawl_schedule, page_count, last_crawled
+		`SELECT id, name, type, url, repo, base_url, space_key, auth, crawl_schedule, page_count, last_crawled, crawl_total
 		 FROM sources ORDER BY id`,
 	)
 	if err != nil {
@@ -101,7 +104,7 @@ func (s *Store) ListSources() ([]Source, error) {
 		var src Source
 		if err := rows.Scan(
 			&src.ID, &src.Name, &src.Type, &src.URL, &src.Repo,
-			&src.BaseURL, &src.SpaceKey, &src.Auth, &src.CrawlSchedule, &src.PageCount, &src.LastCrawled,
+			&src.BaseURL, &src.SpaceKey, &src.Auth, &src.CrawlSchedule, &src.PageCount, &src.LastCrawled, &src.CrawlTotal,
 		); err != nil {
 			return nil, fmt.Errorf("scan source: %w", err)
 		}
@@ -114,11 +117,11 @@ func (s *Store) ListSources() ([]Source, error) {
 func (s *Store) GetSource(id int64) (*Source, error) {
 	var src Source
 	err := s.db.QueryRow(
-		`SELECT id, name, type, url, repo, base_url, space_key, auth, crawl_schedule, page_count, last_crawled
+		`SELECT id, name, type, url, repo, base_url, space_key, auth, crawl_schedule, page_count, last_crawled, crawl_total
 		 FROM sources WHERE id = ?`, id,
 	).Scan(
 		&src.ID, &src.Name, &src.Type, &src.URL, &src.Repo,
-		&src.BaseURL, &src.SpaceKey, &src.Auth, &src.CrawlSchedule, &src.PageCount, &src.LastCrawled,
+		&src.BaseURL, &src.SpaceKey, &src.Auth, &src.CrawlSchedule, &src.PageCount, &src.LastCrawled, &src.CrawlTotal,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, fmt.Errorf("source %d: %w", id, ErrNotFound)
@@ -159,6 +162,18 @@ func (s *Store) UpdateSourcePageCount(id int64, count int) error {
 	)
 	if err != nil {
 		return fmt.Errorf("update source page count %d: %w", id, err)
+	}
+	return nil
+}
+
+// UpdateSourceCrawlTotal sets the total number of URLs discovered for a crawl run.
+func (s *Store) UpdateSourceCrawlTotal(id int64, total int) error {
+	_, err := s.db.Exec(
+		`UPDATE sources SET crawl_total = ? WHERE id = ?`,
+		total, id,
+	)
+	if err != nil {
+		return fmt.Errorf("update source crawl total %d: %w", id, err)
 	}
 	return nil
 }

@@ -15,11 +15,11 @@ import (
 type stubAdapter struct{}
 
 func (s *stubAdapter) NeedsAuth(_ config.SourceConfig) bool { return false }
-func (s *stubAdapter) Crawl(_ context.Context, _ config.SourceConfig, sourceID int64) (<-chan db.Page, error) {
+func (s *stubAdapter) Crawl(_ context.Context, _ config.SourceConfig, sourceID int64) (int, <-chan db.Page, error) {
 	ch := make(chan db.Page, 2)
 	ch <- db.Page{SourceID: sourceID, URL: "http://example.test/page1", Title: "Test Page", Content: "Content here."}
 	close(ch)
-	return ch, nil
+	return 1, ch, nil
 }
 
 func init() {
