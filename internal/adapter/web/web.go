@@ -74,11 +74,10 @@ func (a *WebAdapter) Crawl(ctx context.Context, src config.SourceConfig, sourceI
 			slog.Warn("web: skipping cross-origin sitemap URL", "url", u, "base", src.URL)
 			continue
 		}
-		if !strings.HasPrefix(parsed.Path, filterPath) && parsed.Path != strings.TrimRight(filterPath, "/") {
-			continue
-		}
-		if !isAllowedHost(parsed) {
-			slog.Warn("web: skipping blocked host in sitemap URL", "url", u)
+		if !filterURL(parsed, base, filterPath) {
+			if !isAllowedHost(parsed) {
+				slog.Warn("web: skipping blocked host in sitemap URL", "url", u)
+			}
 			continue
 		}
 		urls = append(urls, u)
