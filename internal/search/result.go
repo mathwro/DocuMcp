@@ -4,7 +4,11 @@ import (
 	"database/sql"
 	"encoding/json"
 	"log/slog"
+	"regexp"
+	"strings"
 )
+
+var htmlTagRe = regexp.MustCompile(`<[^>]+>`)
 
 // Result represents a single search result with relevance score.
 type Result struct {
@@ -25,6 +29,7 @@ func scanResults(rows *sql.Rows) ([]Result, error) {
 		if err := rows.Scan(&r.URL, &r.Title, &r.Snippet, &r.SourceID, &pathJSON, &r.Score); err != nil {
 			return nil, err
 		}
+		r.Snippet = strings.TrimSpace(htmlTagRe.ReplaceAllString(r.Snippet, " "))
 		if err := json.Unmarshal([]byte(pathJSON), &r.Path); err != nil {
 			slog.Warn("failed to unmarshal page path", "path_json", pathJSON, "err", err)
 			r.Path = []string{}

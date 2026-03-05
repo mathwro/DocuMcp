@@ -102,9 +102,9 @@
       <div class="card" x-show="searchResults.length > 0">
         <template x-for="result in searchResults" :key="result.URL">
           <div class="search-result">
-            <div class="result-title" x-text="result.Title || result.URL"></div>
+            <a class="result-title" :href="result.URL" target="_blank" rel="noopener noreferrer" x-text="resultTitle(result)"></a>
             <div class="result-meta" x-text="result.URL + ' · score: ' + (result.Score || 0).toFixed(4)"></div>
-            <div class="result-snippet" x-text="result.Snippet ? result.Snippet.substring(0, 200) : ''"></div>
+            <div class="result-snippet" x-text="result.Snippet ? result.Snippet.substring(0, 300) : ''"></div>
           </div>
         </template>
       </div>

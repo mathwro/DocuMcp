@@ -142,6 +142,14 @@ function app() {
       }
     },
 
+    resultTitle(r) {
+      if (r.Title) return r.Title
+      try {
+        const seg = new URL(r.URL).pathname.replace(/\/$/, '').split('/').filter(Boolean).pop()
+        return seg ? seg.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) : r.URL
+      } catch { return r.URL }
+    },
+
     sourceTypeName(type) {
       const map = { web: 'Web', github_wiki: 'GitHub Wiki', azure_devops: 'Azure DevOps' }
       return map[type] || type
