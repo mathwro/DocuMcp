@@ -46,10 +46,24 @@ func (a *WebAdapter) Crawl(ctx context.Context, src config.SourceConfig, sourceI
 		return 0, nil, fmt.Errorf("web adapter: source URL %q resolves to a blocked host", src.URL)
 	}
 
+	// Determine the path prefix to use for URL filtering.
+	// If include_path is set, validate it shares the same origin and use its path.
+	// Otherwise fall back to the source URL's own path.
+	filterPath := strings.TrimRight(base.Path, "/") + "/"
+	if src.IncludePath != "" {
+		includeParsed, parseErr := url.Parse(src.IncludePath)
+		if parseErr != nil {
+			return 0, nil, fmt.Errorf("web adapter: parse include_path: %w", parseErr)
+		}
+		if !sameOrigin(includeParsed, base) {
+			return 0, nil, fmt.Errorf("web adapter: include_path %q must share origin with source URL %q", src.IncludePath, src.URL)
+		}
+		filterPath = strings.TrimRight(includeParsed.Path, "/") + "/"
+	}
+
 	// Discover and filter URLs before starting the goroutine so we can return
 	// the total count to the caller for progress tracking.
 	allURLs := discoverSitemapURLs(ctx, src.URL, base)
-	basePath := strings.TrimRight(base.Path, "/") + "/"
 	urls := make([]string, 0, len(allURLs))
 	for _, u := range allURLs {
 		parsed, parseErr := url.Parse(u)
@@ -60,7 +74,7 @@ func (a *WebAdapter) Crawl(ctx context.Context, src config.SourceConfig, sourceI
 			slog.Warn("web: skipping cross-origin sitemap URL", "url", u, "base", src.URL)
 			continue
 		}
-		if !strings.HasPrefix(parsed.Path, basePath) && parsed.Path != strings.TrimRight(base.Path, "/") {
+		if !strings.HasPrefix(parsed.Path, filterPath) && parsed.Path != strings.TrimRight(filterPath, "/") {
 			continue
 		}
 		if !isAllowedHost(parsed) {
