@@ -35,6 +35,10 @@
         <template x-if="newSource.Type === 'web'">
           <input type="url" x-model="newSource.URL" placeholder="https://docs.example.com" />
         </template>
+        <template x-if="newSource.Type === 'web'">
+          <input type="url" x-model="newSource.IncludePath"
+                 placeholder="Restrict to path prefix (optional, e.g. https://docs.example.com/guide/)" />
+        </template>
         <template x-if="newSource.Type === 'github_wiki'">
           <input type="text" x-model="newSource.Repo" placeholder="owner/repo" />
         </template>

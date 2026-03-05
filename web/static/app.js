@@ -3,7 +3,7 @@ function app() {
     view: 'sources',
     sources: [],
     showAddForm: false,
-    newSource: { Name: '', Type: 'web', URL: '', Repo: '', CrawlSchedule: '' },
+    newSource: { Name: '', Type: 'web', URL: '', Repo: '', IncludePath: '', CrawlSchedule: '' },
     deviceCodePending: null,
     pollInterval: null,
     refreshInterval: null,
@@ -59,7 +59,7 @@ function app() {
         })
         if (!r.ok) { alert('Failed to add source: ' + await r.text()); return }
         this.showAddForm = false
-        this.newSource = { Name: '', Type: 'web', URL: '', Repo: '', CrawlSchedule: '' }
+        this.newSource = { Name: '', Type: 'web', URL: '', Repo: '', IncludePath: '', CrawlSchedule: '' }
         await this.loadSources()
       } catch(e) {
         console.error('addSource:', e)
