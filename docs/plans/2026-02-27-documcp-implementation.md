@@ -3101,3 +3101,35 @@ Before considering implementation complete, verify:
 - [ ] Azure device code flow shows user_code in UI
 - [ ] Docker image builds and runs successfully
 - [ ] Token storage is encrypted (verify tokens table contains ciphertext, not plaintext)
+
+---
+
+## Post-Launch Improvements (2026-03-05)
+
+All items committed to `main` branch.
+
+| Change | Commits |
+|---|---|
+| Security fixes (SSRF, CSP, token encryption, authRevoke) | `4db5197` |
+| Alpine.js vendored, script load order fixed, unsafe-eval CSP | `4db5197`, `36827a70` |
+| Polite web crawler: 500ms delay, User-Agent, 429/Retry-After | `4b2b0ca` |
+| Sitemap discovery: path-local then root fallback | `4b2b0ca` |
+| Path-prefix filtering to avoid cross-version crawling | `4b2b0ca` |
+| Live crawl progress: N / Total pages badge, 2s polling | `05a1f4a`, `88cd085`, `39ebe8d` |
+| `crawl_total` DB column + adapter returns total count | `05a1f4a` |
+| Server-side `crawlingIDs` tracking in API server | `88cd085` |
+| Search result titles clickable, HTML stripped from snippets | `f6b1b3b` |
+| `<title>` tag extraction (longer-side split heuristic) | `f6b1b3b` |
+| `noscript`/`iframe` added to skipTags | `f6b1b3b` |
+| `include_path` field for web sources (path-prefix filter) | `19142c6`–`f9c4001` |
+| `filterURL` helper extracted for testability | `4f44257`, `c6347a6` |
+| README, CLAUDE.md, `.github/copilot-instructions.md` | `23fd303`, `803dfe6` |
+
+## Testing Checklist (verified ✅)
+- `make test` passes — all packages green
+- Container builds with `make docker` → `documcp:local`
+- Web UI: sources dashboard, add source form, search view all functional
+- Crawl progress badge shows "N / Total pages" live
+- Search results: clickable titles, clean snippets, page titles from `<title>` tag
+- `include_path` restricts crawl to URL prefix (same-origin validated)
+- Harbor Docs (90 pages) indexed and searchable
