@@ -70,6 +70,7 @@ Open `http://localhost:8080` to manage sources and search.
 | `sources[].name` | Display name for the source |
 | `sources[].type` | `web`, `github_wiki`, or `azure_devops` |
 | `sources[].url` | Base URL (web and Azure DevOps sources) |
+| `sources[].include_path` | (Web only) If set, only pages whose URL starts with this prefix are indexed. Must share the same origin as `url`. |
 | `sources[].repo` | `owner/repo` (GitHub Wiki sources) |
 | `sources[].crawl_schedule` | Cron expression, e.g. `0 2 * * *` or `@weekly` |
 
@@ -89,9 +90,10 @@ Open `http://localhost:8080` to manage sources and search.
 Crawls public websites. Discovers pages via sitemap, falls back to link following. Polite crawling with 500 ms delay between requests and `Retry-After` backoff on HTTP 429.
 
 ```yaml
-- name: Harbor Docs
+- name: ArgoCD Operator Manual
   type: web
-  url: https://goharbor.io/docs/2.14.0/
+  url: https://argo-cd.readthedocs.io/en/stable/
+  include_path: https://argo-cd.readthedocs.io/en/stable/operator-manual/
   crawl_schedule: "@weekly"
 ```
 
