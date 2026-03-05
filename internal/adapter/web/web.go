@@ -233,6 +233,22 @@ func sameOrigin(u, base *url.URL) bool {
 	return u.Scheme == base.Scheme && strings.EqualFold(u.Host, base.Host)
 }
 
+// filterURL returns true if u should be included in a crawl whose filter
+// path is filterPath and base origin is base. It checks origin, path prefix,
+// and SSRF safety.
+func filterURL(u *url.URL, base *url.URL, filterPath string) bool {
+	if !sameOrigin(u, base) {
+		return false
+	}
+	if !strings.HasPrefix(u.Path, filterPath) && u.Path != strings.TrimRight(filterPath, "/") {
+		return false
+	}
+	if !isAllowedHost(u) {
+		return false
+	}
+	return true
+}
+
 // isAllowedHost returns false if the URL's host is a loopback, link-local,
 // or RFC-1918 private address — blocking SSRF via the crawler.
 func isAllowedHost(u *url.URL) bool {
