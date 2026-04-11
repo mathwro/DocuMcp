@@ -31,14 +31,15 @@ make docker
 
 > The build downloads the `all-MiniLM-L6-v2` ONNX model (~90 MB) from HuggingFace. Requires Python/pip for `optimum-cli` in the builder stage.
 
-### 2. Create a config file
+### 2. Generate config and secret key
+
+```bash
+make init
+```
+
+This creates a `config.yaml` with defaults and a `.env` file with a generated secret key. Edit `config.yaml` to add your sources:
 
 ```yaml
-# config.yaml
-server:
-  port: 8080
-  data_dir: /app/data
-
 sources:
   - name: My Docs
     type: web
@@ -46,19 +47,9 @@ sources:
     crawl_schedule: "@weekly"
 ```
 
-### 3. Generate a secret key
+> `make init` skips files that already exist, so it is safe to re-run.
 
-```bash
-openssl rand -hex 32
-```
-
-Create a `.env` file (never commit this):
-
-```
-DOCUMCP_SECRET_KEY=<your-hex-key>
-```
-
-### 4. Start the server
+### 3. Start the server
 
 ```bash
 docker compose up -d
