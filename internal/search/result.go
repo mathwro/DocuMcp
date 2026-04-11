@@ -20,7 +20,7 @@ type Result struct {
 	Score    float64
 }
 
-// scanResults scans rows of (url, title, content, source_id, path, score) into Result slice.
+// scanResults scans rows of (url, title, snippet, source_id, path, score) into Result slice.
 func scanResults(rows *sql.Rows) ([]Result, error) {
 	var results []Result
 	for rows.Next() {

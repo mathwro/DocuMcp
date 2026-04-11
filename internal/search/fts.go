@@ -15,7 +15,9 @@ import (
 func FTS(store *db.Store, query string, limit int) ([]Result, error) {
 	// bm25() returns negative values — lower is more relevant, so ORDER BY score ASC
 	rows, err := store.DB().Query(`
-		SELECT p.url, p.title, p.content, p.source_id, p.path,
+		SELECT p.url, p.title,
+		       snippet(pages_fts, 1, '', '', '...', 32) AS snippet,
+		       p.source_id, p.path,
 		       bm25(pages_fts) AS score
 		FROM pages_fts
 		JOIN pages p ON pages_fts.rowid = p.id
