@@ -1,6 +1,7 @@
 package search_test
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/documcp/documcp/internal/db"
@@ -109,5 +110,30 @@ func TestBrowseSection_NoMatch(t *testing.T) {
 	}
 	if len(pages) != 0 {
 		t.Errorf("expected 0 pages, got %d", len(pages))
+	}
+}
+
+func TestBrowseSection_CapAt50(t *testing.T) {
+	store, srcID := setupBrowseDB(t)
+
+	// Insert 60 pages in the same section.
+	for i := 0; i < 60; i++ {
+		page := db.Page{
+			SourceID: srcID,
+			URL:      fmt.Sprintf("https://example.com/auth/%d", i),
+			Title:    fmt.Sprintf("Auth Page %d", i),
+			Path:     []string{"Authentication", fmt.Sprintf("Page%d", i)},
+		}
+		if _, err := store.UpsertPage(page); err != nil {
+			t.Fatalf("UpsertPage %d: %v", i, err)
+		}
+	}
+
+	pages, err := search.BrowseSection(store, srcID, "Authentication")
+	if err != nil {
+		t.Fatalf("BrowseSection: %v", err)
+	}
+	if len(pages) > 50 {
+		t.Errorf("expected at most 50 pages, got %d", len(pages))
 	}
 }

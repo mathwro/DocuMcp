@@ -6,12 +6,58 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"time"
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/documcp/documcp/internal/db"
 	"github.com/documcp/documcp/internal/search"
 )
+
+// sourceInfo is the MCP-facing representation of a documentation source.
+// It intentionally omits fields that have no value to an AI client:
+//   - Auth: encrypted tokens (security concern)
+//   - BaseURL, SpaceKey: adapter-internal identifiers (URL already identifies the source)
+//   - CrawlSchedule: internal scheduling detail (LastCrawled gives staleness info)
+type sourceInfo struct {
+	ID          int64      `json:"id"`
+	Name        string     `json:"name"`
+	Type        string     `json:"type"`
+	URL         string     `json:"url"`
+	Repo        string     `json:"repo,omitempty"`
+	PageCount   int        `json:"pageCount"`
+	CrawlTotal  int        `json:"crawlTotal"`
+	LastCrawled *time.Time `json:"lastCrawled,omitempty"`
+	IncludePath string     `json:"includePath,omitempty"`
+}
+
+func toSourceInfo(s db.Source) sourceInfo {
+	return sourceInfo{
+		ID:          s.ID,
+		Name:        s.Name,
+		Type:        s.Type,
+		URL:         s.URL,
+		Repo:        s.Repo,
+		PageCount:   s.PageCount,
+		CrawlTotal:  s.CrawlTotal,
+		LastCrawled: s.LastCrawled,
+		IncludePath: s.IncludePath,
+	}
+}
+
+// searchResult is the MCP-facing representation of a single search hit.
+// It replaces the internal search.Result struct for JSON output:
+//   - SourceName replaces SourceID (the name is immediately meaningful to an AI;
+//     the integer ID requires a separate list_sources call to interpret).
+//   - Score is omitted — results are already ranked best-first; the raw BM25
+//     or RRF float is not interpretable and adds noise to the response.
+type searchResult struct {
+	URL        string   `json:"url"`
+	Title      string   `json:"title"`
+	Snippet    string   `json:"snippet"`
+	SourceName string   `json:"sourceName"`
+	Path       []string `json:"path"`
+}
 
 // objectSchema is the minimal JSON Schema for a tool that accepts an
 // unrestricted JSON object (or no required arguments at all).
@@ -21,13 +67,19 @@ var objectSchema = json.RawMessage(`{"type":"object"}`)
 func (s *Server) registerTools() {
 	s.server.AddTool(&sdkmcp.Tool{
 		Name:        "list_sources",
-		Description: "List all configured documentation sources and their crawl status.",
+		Description: "List all configured documentation sources with their names, types, URLs, " +
+			"page counts, and last crawl times. Call this first if you do not know what sources " +
+			"are available. Source names are required parameters for search_docs and browse_source.",
 		InputSchema: objectSchema,
 	}, s.handleListSources)
 
 	s.server.AddTool(&sdkmcp.Tool{
 		Name:        "search_docs",
-		Description: "Search documentation using hybrid BM25 + semantic search. Returns up to 10 results.",
+		Description: "Start here for any documentation question. Searches all indexed sources using " +
+			"hybrid BM25 + semantic search and returns up to 10 results ranked by relevance. Each " +
+			"result includes the source name, section path, and a short excerpt (~200 chars) centred " +
+			"on the matched terms. If an excerpt confirms the page is relevant, call get_page with " +
+			"that URL for the full content. Optionally restrict to a single source by name.",
 		InputSchema: json.RawMessage(`{
 			"type": "object",
 			"properties": {
@@ -40,7 +92,11 @@ func (s *Server) registerTools() {
 
 	s.server.AddTool(&sdkmcp.Tool{
 		Name:        "browse_source",
-		Description: "Browse a documentation source. Returns top-level sections, or pages within a section.",
+		Description: "Explore the structure of a documentation source. Without section: returns all " +
+			"top-level sections with page counts — use this to understand what a source contains. " +
+			"With section: returns up to 50 pages (URL + title) in that section. Prefer search_docs " +
+			"when you have a specific question; use browse_source when you need to navigate the " +
+			"documentation hierarchy or when search results are insufficient.",
 		InputSchema: json.RawMessage(`{
 			"type": "object",
 			"properties": {
@@ -53,7 +109,10 @@ func (s *Server) registerTools() {
 
 	s.server.AddTool(&sdkmcp.Tool{
 		Name:        "get_page",
-		Description: "Retrieve the full content of a documentation page by URL.",
+		Description: "Retrieve the full content of a single documentation page by URL. Only call " +
+			"this after confirming relevance — use search_docs first to find candidate URLs and " +
+			"read their excerpts. Returns the complete page text, which may be large for reference " +
+			"or API pages.",
 		InputSchema: json.RawMessage(`{
 			"type": "object",
 			"properties": {
@@ -79,7 +138,11 @@ func (s *Server) handleListSources(_ context.Context, _ *sdkmcp.CallToolRequest)
 	if err != nil {
 		return toolError(fmt.Sprintf("list sources: %v", err))
 	}
-	data, err := json.Marshal(sources)
+	infos := make([]sourceInfo, len(sources))
+	for i, src := range sources {
+		infos[i] = toSourceInfo(src)
+	}
+	data, err := json.Marshal(infos)
 	if err != nil {
 		return toolError(fmt.Sprintf("marshal sources: %v", err))
 	}
@@ -142,7 +205,34 @@ func (s *Server) handleSearchDocs(_ context.Context, req *sdkmcp.CallToolRequest
 		}
 	}
 
-	data, err := json.Marshal(results)
+	if len(results) == 0 {
+		data, _ := json.Marshal(make([]searchResult, 0))
+		return &sdkmcp.CallToolResult{
+			Content: []sdkmcp.Content{&sdkmcp.TextContent{Text: string(data)}},
+		}, nil
+	}
+
+	// Build a source ID → name map so each result can carry a human-readable name.
+	allSources, err := s.store.ListSources()
+	if err != nil {
+		return toolError(fmt.Sprintf("lookup sources: %v", err))
+	}
+	sourceNames := make(map[int64]string, len(allSources))
+	for _, src := range allSources {
+		sourceNames[src.ID] = src.Name
+	}
+
+	out := make([]searchResult, len(results))
+	for i, r := range results {
+		out[i] = searchResult{
+			URL:        r.URL,
+			Title:      r.Title,
+			Snippet:    r.Snippet,
+			SourceName: sourceNames[r.SourceID],
+			Path:       r.Path,
+		}
+	}
+	data, err := json.Marshal(out)
 	if err != nil {
 		return toolError(fmt.Sprintf("marshal results: %v", err))
 	}

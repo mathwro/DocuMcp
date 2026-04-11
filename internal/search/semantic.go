@@ -35,5 +35,9 @@ func Semantic(store *db.Store, embedder *embed.Embedder, query string, limit int
 		return nil, fmt.Errorf("semantic query: %w", err)
 	}
 	defer rows.Close()
-	return scanResults(rows)
+	results, err := scanResults(rows)
+	if err != nil {
+		return nil, fmt.Errorf("scan semantic results: %w", err)
+	}
+	return results, nil
 }

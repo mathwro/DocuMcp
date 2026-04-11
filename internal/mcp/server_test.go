@@ -46,11 +46,11 @@ func connectTestClient(t *testing.T, s *mcpserver.Server) *sdkmcp.ClientSession 
 func TestListSources(t *testing.T) {
 	store := openTestDB(t)
 
-	// Insert a test source.
 	_, err := store.InsertSource(db.Source{
 		Name: "Test Docs",
 		Type: "web",
 		URL:  "https://example.com",
+		Auth: "super-secret-token",
 	})
 	if err != nil {
 		t.Fatalf("insert source: %v", err)
@@ -76,19 +76,27 @@ func TestListSources(t *testing.T) {
 
 	text := res.Content[0].(*sdkmcp.TextContent).Text
 	if !strings.Contains(text, "Test Docs") {
-		t.Errorf("list_sources response does not contain %q; got: %s", "Test Docs", text)
+		t.Errorf("list_sources response does not contain source name; got: %s", text)
 	}
 
-	// Verify the JSON is valid and contains the source name.
-	var sources []db.Source
+	// Auth field must not appear in the response — it holds encrypted tokens.
+	if strings.Contains(text, "super-secret-token") {
+		t.Error("list_sources response must not contain auth token value")
+	}
+	if strings.Contains(text, `"auth"`) || strings.Contains(text, `"Auth"`) {
+		t.Error("list_sources response must not contain 'auth' field at all")
+	}
+
+	// Verify the JSON is valid and the source name is present.
+	var sources []map[string]any
 	if err := json.Unmarshal([]byte(text), &sources); err != nil {
 		t.Fatalf("unmarshal list_sources response: %v", err)
 	}
 	if len(sources) != 1 {
 		t.Errorf("expected 1 source, got %d", len(sources))
 	}
-	if sources[0].Name != "Test Docs" {
-		t.Errorf("expected source name %q, got %q", "Test Docs", sources[0].Name)
+	if sources[0]["name"] != "Test Docs" {
+		t.Errorf("expected source name 'Test Docs', got %v", sources[0]["name"])
 	}
 }
 
@@ -151,6 +159,204 @@ func TestBrowseSourceNotFound(t *testing.T) {
 	}
 	if !res.IsError {
 		t.Fatal("expected browse_source to return error for unknown source, but got success")
+	}
+}
+
+func TestSearchDocs_SourceFilter(t *testing.T) {
+	store := openTestDB(t)
+
+	// Create two sources with one page each.
+	src1, err := store.InsertSource(db.Source{Name: "React", Type: "web", URL: "https://react.dev"})
+	if err != nil {
+		t.Fatalf("insert source 1: %v", err)
+	}
+	src2, err := store.InsertSource(db.Source{Name: "Vue", Type: "web", URL: "https://vuejs.org"})
+	if err != nil {
+		t.Fatalf("insert source 2: %v", err)
+	}
+	if _, err := store.UpsertPage(db.Page{
+		SourceID: src1, URL: "https://react.dev/hooks",
+		Title: "React Hooks", Content: "Hooks let you use state in function components.",
+		Path: []string{"API", "Hooks"},
+	}); err != nil {
+		t.Fatalf("upsert page 1: %v", err)
+	}
+	if _, err := store.UpsertPage(db.Page{
+		SourceID: src2, URL: "https://vuejs.org/composables",
+		Title: "Vue Composables", Content: "Composables let you use state in composition API.",
+		Path: []string{"API", "Composables"},
+	}); err != nil {
+		t.Fatalf("upsert page 2: %v", err)
+	}
+
+	srv := mcpserver.NewServer(store, nil)
+	cs := connectTestClient(t, srv)
+
+	ctx := context.Background()
+	res, err := cs.CallTool(ctx, &sdkmcp.CallToolParams{
+		Name:      "search_docs",
+		Arguments: map[string]any{"query": "state components", "source": "React"},
+	})
+	if err != nil {
+		t.Fatalf("search_docs call: %v", err)
+	}
+	if res.IsError {
+		t.Fatalf("search_docs returned error: %v", res.Content)
+	}
+
+	text := res.Content[0].(*sdkmcp.TextContent).Text
+	var results []map[string]any
+	if err := json.Unmarshal([]byte(text), &results); err != nil {
+		t.Fatalf("unmarshal results: %v", err)
+	}
+	if len(results) == 0 {
+		t.Fatal("expected at least one result")
+	}
+
+	// All results must be from "React", not "Vue".
+	for i, r := range results {
+		if r["sourceName"] != "React" {
+			t.Errorf("result %d: expected sourceName 'React', got %v", i, r["sourceName"])
+		}
+	}
+}
+
+func TestBrowseSource_Success(t *testing.T) {
+	store := openTestDB(t)
+
+	srcID, err := store.InsertSource(db.Source{Name: "Docs", Type: "web", URL: "https://example.com"})
+	if err != nil {
+		t.Fatalf("insert source: %v", err)
+	}
+	if _, err := store.UpsertPage(db.Page{
+		SourceID: srcID, URL: "https://example.com/guide/intro",
+		Title: "Introduction", Content: "Welcome to the docs.",
+		Path: []string{"Guide", "Introduction"},
+	}); err != nil {
+		t.Fatalf("upsert page 1: %v", err)
+	}
+	if _, err := store.UpsertPage(db.Page{
+		SourceID: srcID, URL: "https://example.com/api/auth",
+		Title: "Auth API", Content: "Authentication endpoints.",
+		Path: []string{"API", "Auth"},
+	}); err != nil {
+		t.Fatalf("upsert page 2: %v", err)
+	}
+
+	srv := mcpserver.NewServer(store, nil)
+	cs := connectTestClient(t, srv)
+	ctx := context.Background()
+
+	// Top-level browse: should return sections with page counts.
+	res, err := cs.CallTool(ctx, &sdkmcp.CallToolParams{
+		Name:      "browse_source",
+		Arguments: map[string]any{"source": "Docs"},
+	})
+	if err != nil {
+		t.Fatalf("browse_source call: %v", err)
+	}
+	if res.IsError {
+		t.Fatalf("browse_source returned error: %v", res.Content)
+	}
+	text := res.Content[0].(*sdkmcp.TextContent).Text
+	var sections []map[string]any
+	if err := json.Unmarshal([]byte(text), &sections); err != nil {
+		t.Fatalf("unmarshal sections: %v", err)
+	}
+	if len(sections) != 2 {
+		t.Fatalf("expected 2 sections, got %d", len(sections))
+	}
+
+	// Drill into a section: should return pages.
+	res, err = cs.CallTool(ctx, &sdkmcp.CallToolParams{
+		Name:      "browse_source",
+		Arguments: map[string]any{"source": "Docs", "section": "Guide"},
+	})
+	if err != nil {
+		t.Fatalf("browse_source section call: %v", err)
+	}
+	if res.IsError {
+		t.Fatalf("browse_source section returned error: %v", res.Content)
+	}
+	text = res.Content[0].(*sdkmcp.TextContent).Text
+	var pages []map[string]any
+	if err := json.Unmarshal([]byte(text), &pages); err != nil {
+		t.Fatalf("unmarshal pages: %v", err)
+	}
+	if len(pages) != 1 {
+		t.Errorf("expected 1 page in Guide section, got %d", len(pages))
+	}
+	if pages[0]["Title"] != "Introduction" {
+		t.Errorf("expected page title 'Introduction', got %v", pages[0]["Title"])
+	}
+}
+
+func TestSearchDocs_ResultDTO(t *testing.T) {
+	store := openTestDB(t)
+
+	srcID, err := store.InsertSource(db.Source{
+		Name: "Go Docs",
+		Type: "web",
+		URL:  "https://pkg.go.dev",
+	})
+	if err != nil {
+		t.Fatalf("insert source: %v", err)
+	}
+	if _, err := store.UpsertPage(db.Page{
+		SourceID: srcID,
+		URL:      "https://pkg.go.dev/context",
+		Title:    "context package",
+		Content:  "Package context defines the Context type which carries deadlines and cancellation signals.",
+		Path:     []string{"stdlib", "context"},
+	}); err != nil {
+		t.Fatalf("upsert page: %v", err)
+	}
+
+	srv := mcpserver.NewServer(store, nil)
+	cs := connectTestClient(t, srv)
+
+	ctx := context.Background()
+	res, err := cs.CallTool(ctx, &sdkmcp.CallToolParams{
+		Name:      "search_docs",
+		Arguments: map[string]any{"query": "context cancellation"},
+	})
+	if err != nil {
+		t.Fatalf("search_docs call: %v", err)
+	}
+	if res.IsError {
+		t.Fatalf("search_docs returned error: %v", res.Content)
+	}
+
+	text := res.Content[0].(*sdkmcp.TextContent).Text
+
+	var results []map[string]any
+	if err := json.Unmarshal([]byte(text), &results); err != nil {
+		t.Fatalf("unmarshal results: %v", err)
+	}
+	if len(results) == 0 {
+		t.Fatal("expected at least one result")
+	}
+
+	r := results[0]
+
+	// Source name must be present and correct.
+	if r["sourceName"] != "Go Docs" {
+		t.Errorf("expected sourceName 'Go Docs', got %v", r["sourceName"])
+	}
+
+	// Raw SourceID and Score must not appear — they are internal implementation details.
+	for _, forbidden := range []string{"SourceID", "sourceId", "Score", "score"} {
+		if _, ok := r[forbidden]; ok {
+			t.Errorf("search result must not contain field %q", forbidden)
+		}
+	}
+
+	// Core fields must be present.
+	if r["url"] == nil {
+		t.Error("expected 'url' field in result")
+	}
+	if r["snippet"] == nil {
+		t.Error("expected 'snippet' field in result")
 	}
 }
 

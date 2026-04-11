@@ -7,6 +7,10 @@ import (
 	"github.com/documcp/documcp/internal/db"
 )
 
+// browseSectionLimit is the maximum number of pages returned by BrowseSection.
+// Callers needing more pages should narrow the section or use search_docs.
+const browseSectionLimit = 50
+
 // Section is a top-level group of pages within a source.
 type Section struct {
 	Name      string
@@ -49,13 +53,14 @@ func BrowseTopLevel(store *db.Store, sourceID int64) ([]Section, error) {
 	return sections, nil
 }
 
-// BrowseSection returns all pages whose first path element matches section.
+// BrowseSection returns up to 50 pages whose first path element matches section.
 // Returns make([]PageRef, 0) when there are no matches.
 func BrowseSection(store *db.Store, sourceID int64, section string) ([]PageRef, error) {
 	rows, err := store.DB().Query(
 		`SELECT url, title, path FROM pages
-		 WHERE source_id = ? AND json_extract(path, '$[0]') = ?`,
-		sourceID, section,
+		 WHERE source_id = ? AND json_extract(path, '$[0]') = ?
+		 LIMIT ?`,
+		sourceID, section, browseSectionLimit,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("browse section: %w", err)
