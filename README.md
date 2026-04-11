@@ -14,7 +14,15 @@ A self-hosted MCP (Model Context Protocol) server that indexes your documentatio
 
 ## Quick Start
 
-### 1. Build the container image
+### 1. Get the container image
+
+**Pull from GitHub Container Registry:**
+
+```bash
+docker pull ghcr.io/mathwro/documcp:latest
+```
+
+**Or build locally:**
 
 ```bash
 make docker
@@ -146,16 +154,16 @@ The MCP server is available at `http://localhost:8080/mcp/` using Server-Sent Ev
 
 | Tool | Description |
 |---|---|
-| `list_sources` | Lists all configured sources with crawl status |
-| `search_docs(query, source?)` | Hybrid search across all (or a specific) source |
-| `browse_source(source, section?)` | Hierarchical table of contents — drill into sections |
-| `get_page(url)` | Retrieve full content of a specific page |
+| `list_sources` | Lists all configured sources with names, types, page counts, and crawl status |
+| `search_docs(query, source?)` | Hybrid search returning up to 10 results with short excerpts (~200 chars) and source names. Use `get_page` for full content. |
+| `browse_source(source, section?)` | Hierarchical table of contents — top-level sections with page counts, or up to 50 pages in a section |
+| `get_page(url)` | Retrieve the full content of a specific page by URL |
 
 ## Development
 
 ### Requirements
 
-- Go 1.21+ with CGo enabled
+- Go 1.26+ with CGo enabled
 - GCC / `libsqlite3-dev` (for `go-sqlite3`)
 
 ### Build & Test
