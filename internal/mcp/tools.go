@@ -6,12 +6,44 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"time"
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/documcp/documcp/internal/db"
 	"github.com/documcp/documcp/internal/search"
 )
+
+// sourceInfo is the MCP-facing representation of a documentation source.
+// It intentionally omits fields that have no value to an AI client:
+//   - Auth: encrypted tokens (security concern)
+//   - BaseURL, SpaceKey: adapter-internal identifiers (URL already identifies the source)
+//   - CrawlSchedule: internal scheduling detail (LastCrawled gives staleness info)
+type sourceInfo struct {
+	ID          int64      `json:"id"`
+	Name        string     `json:"name"`
+	Type        string     `json:"type"`
+	URL         string     `json:"url"`
+	Repo        string     `json:"repo,omitempty"`
+	PageCount   int        `json:"pageCount"`
+	CrawlTotal  int        `json:"crawlTotal"`
+	LastCrawled *time.Time `json:"lastCrawled,omitempty"`
+	IncludePath string     `json:"includePath,omitempty"`
+}
+
+func toSourceInfo(s db.Source) sourceInfo {
+	return sourceInfo{
+		ID:          s.ID,
+		Name:        s.Name,
+		Type:        s.Type,
+		URL:         s.URL,
+		Repo:        s.Repo,
+		PageCount:   s.PageCount,
+		CrawlTotal:  s.CrawlTotal,
+		LastCrawled: s.LastCrawled,
+		IncludePath: s.IncludePath,
+	}
+}
 
 // objectSchema is the minimal JSON Schema for a tool that accepts an
 // unrestricted JSON object (or no required arguments at all).
@@ -79,7 +111,11 @@ func (s *Server) handleListSources(_ context.Context, _ *sdkmcp.CallToolRequest)
 	if err != nil {
 		return toolError(fmt.Sprintf("list sources: %v", err))
 	}
-	data, err := json.Marshal(sources)
+	infos := make([]sourceInfo, len(sources))
+	for i, src := range sources {
+		infos[i] = toSourceInfo(src)
+	}
+	data, err := json.Marshal(infos)
 	if err != nil {
 		return toolError(fmt.Sprintf("marshal sources: %v", err))
 	}

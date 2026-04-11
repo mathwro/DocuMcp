@@ -46,11 +46,11 @@ func connectTestClient(t *testing.T, s *mcpserver.Server) *sdkmcp.ClientSession 
 func TestListSources(t *testing.T) {
 	store := openTestDB(t)
 
-	// Insert a test source.
 	_, err := store.InsertSource(db.Source{
 		Name: "Test Docs",
 		Type: "web",
 		URL:  "https://example.com",
+		Auth: "super-secret-token",
 	})
 	if err != nil {
 		t.Fatalf("insert source: %v", err)
@@ -76,19 +76,27 @@ func TestListSources(t *testing.T) {
 
 	text := res.Content[0].(*sdkmcp.TextContent).Text
 	if !strings.Contains(text, "Test Docs") {
-		t.Errorf("list_sources response does not contain %q; got: %s", "Test Docs", text)
+		t.Errorf("list_sources response does not contain source name; got: %s", text)
 	}
 
-	// Verify the JSON is valid and contains the source name.
-	var sources []db.Source
+	// Auth field must not appear in the response — it holds encrypted tokens.
+	if strings.Contains(text, "super-secret-token") {
+		t.Error("list_sources response must not contain auth token value")
+	}
+	if strings.Contains(text, `"auth"`) || strings.Contains(text, `"Auth"`) {
+		t.Error("list_sources response must not contain 'auth' field at all")
+	}
+
+	// Verify the JSON is valid and the source name is present.
+	var sources []map[string]any
 	if err := json.Unmarshal([]byte(text), &sources); err != nil {
 		t.Fatalf("unmarshal list_sources response: %v", err)
 	}
 	if len(sources) != 1 {
 		t.Errorf("expected 1 source, got %d", len(sources))
 	}
-	if sources[0].Name != "Test Docs" {
-		t.Errorf("expected source name %q, got %q", "Test Docs", sources[0].Name)
+	if sources[0]["name"] != "Test Docs" {
+		t.Errorf("expected source name 'Test Docs', got %v", sources[0]["name"])
 	}
 }
 
