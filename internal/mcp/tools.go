@@ -45,6 +45,20 @@ func toSourceInfo(s db.Source) sourceInfo {
 	}
 }
 
+// searchResult is the MCP-facing representation of a single search hit.
+// It replaces the internal search.Result struct for JSON output:
+//   - SourceName replaces SourceID (the name is immediately meaningful to an AI;
+//     the integer ID requires a separate list_sources call to interpret).
+//   - Score is omitted — results are already ranked best-first; the raw BM25
+//     or RRF float is not interpretable and adds noise to the response.
+type searchResult struct {
+	URL        string   `json:"url"`
+	Title      string   `json:"title"`
+	Snippet    string   `json:"snippet"`
+	SourceName string   `json:"sourceName"`
+	Path       []string `json:"path"`
+}
+
 // objectSchema is the minimal JSON Schema for a tool that accepts an
 // unrestricted JSON object (or no required arguments at all).
 var objectSchema = json.RawMessage(`{"type":"object"}`)
@@ -191,7 +205,34 @@ func (s *Server) handleSearchDocs(_ context.Context, req *sdkmcp.CallToolRequest
 		}
 	}
 
-	data, err := json.Marshal(results)
+	if len(results) == 0 {
+		data, _ := json.Marshal(make([]searchResult, 0))
+		return &sdkmcp.CallToolResult{
+			Content: []sdkmcp.Content{&sdkmcp.TextContent{Text: string(data)}},
+		}, nil
+	}
+
+	// Build a source ID → name map so each result can carry a human-readable name.
+	allSources, err := s.store.ListSources()
+	if err != nil {
+		return toolError(fmt.Sprintf("lookup sources: %v", err))
+	}
+	sourceNames := make(map[int64]string, len(allSources))
+	for _, src := range allSources {
+		sourceNames[src.ID] = src.Name
+	}
+
+	out := make([]searchResult, len(results))
+	for i, r := range results {
+		out[i] = searchResult{
+			URL:        r.URL,
+			Title:      r.Title,
+			Snippet:    r.Snippet,
+			SourceName: sourceNames[r.SourceID],
+			Path:       r.Path,
+		}
+	}
+	data, err := json.Marshal(out)
 	if err != nil {
 		return toolError(fmt.Sprintf("marshal results: %v", err))
 	}

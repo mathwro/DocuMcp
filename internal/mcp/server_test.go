@@ -162,3 +162,72 @@ func TestBrowseSourceNotFound(t *testing.T) {
 	}
 }
 
+func TestSearchDocs_ResultDTO(t *testing.T) {
+	store := openTestDB(t)
+
+	srcID, err := store.InsertSource(db.Source{
+		Name: "Go Docs",
+		Type: "web",
+		URL:  "https://pkg.go.dev",
+	})
+	if err != nil {
+		t.Fatalf("insert source: %v", err)
+	}
+	if _, err := store.UpsertPage(db.Page{
+		SourceID: srcID,
+		URL:      "https://pkg.go.dev/context",
+		Title:    "context package",
+		Content:  "Package context defines the Context type which carries deadlines and cancellation signals.",
+		Path:     []string{"stdlib", "context"},
+	}); err != nil {
+		t.Fatalf("upsert page: %v", err)
+	}
+
+	srv := mcpserver.NewServer(store, nil)
+	cs := connectTestClient(t, srv)
+
+	ctx := context.Background()
+	res, err := cs.CallTool(ctx, &sdkmcp.CallToolParams{
+		Name:      "search_docs",
+		Arguments: map[string]any{"query": "context cancellation"},
+	})
+	if err != nil {
+		t.Fatalf("search_docs call: %v", err)
+	}
+	if res.IsError {
+		t.Fatalf("search_docs returned error: %v", res.Content)
+	}
+
+	text := res.Content[0].(*sdkmcp.TextContent).Text
+
+	var results []map[string]any
+	if err := json.Unmarshal([]byte(text), &results); err != nil {
+		t.Fatalf("unmarshal results: %v", err)
+	}
+	if len(results) == 0 {
+		t.Fatal("expected at least one result")
+	}
+
+	r := results[0]
+
+	// Source name must be present and correct.
+	if r["sourceName"] != "Go Docs" {
+		t.Errorf("expected sourceName 'Go Docs', got %v", r["sourceName"])
+	}
+
+	// Raw SourceID and Score must not appear — they are internal implementation details.
+	for _, forbidden := range []string{"SourceID", "sourceId", "Score", "score"} {
+		if _, ok := r[forbidden]; ok {
+			t.Errorf("search result must not contain field %q", forbidden)
+		}
+	}
+
+	// Core fields must be present.
+	if r["url"] == nil {
+		t.Error("expected 'url' field in result")
+	}
+	if r["snippet"] == nil {
+		t.Error("expected 'snippet' field in result")
+	}
+}
+
