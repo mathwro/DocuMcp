@@ -82,7 +82,7 @@ New source type `github_repo` consumes the following fields from `config.SourceC
 ### Config validation
 
 - `repo` must match `/^[^/]+/[^/]+$/` (owner/name, no slashes inside segments).
-- `include_path`, if set, is normalized: leading `/` trimmed, trailing `/` ensured, `filepath.Clean` applied. After cleaning, if it contains `..` segments or starts with `..`, the source is rejected at config load.
+- `include_path`, if set, is validated in the adapter's `Crawl` entry point before any HTTP request: the raw value is run through `path.Clean` (after trimming any leading `/`); if the cleaned value is `..`, starts with `../`, or contains `/../`, `Crawl` returns a wrapped error. Matches the existing web-adapter pattern for `include_path` validation.
 - `branch`, if set, is used verbatim in the URL path after `url.PathEscape`.
 
 ## Data flow
