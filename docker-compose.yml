@@ -17,6 +17,9 @@ services:
       # Generate with: openssl rand -hex 32 and set in .env file.
       # If unset, a random key is generated per-run and stored tokens are lost on restart.
       - DOCUMCP_SECRET_KEY=${DOCUMCP_SECRET_KEY}
+      # Optional: bearer token required on /api/* and /mcp/* endpoints.
+      # If empty, those endpoints are open (warns at startup).
+      - DOCUMCP_API_KEY=${DOCUMCP_API_KEY:-}
 
 volumes:
   documcp_data:

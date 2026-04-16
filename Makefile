@@ -13,7 +13,7 @@ test:
 docker:
 	$(CONTAINER_RUNTIME) build -t documcp:local .
 
-run: docker
+run: $(CONTAINER_RUNTIME)
 	$(COMPOSE_CMD) up
 
 lint:
@@ -23,11 +23,12 @@ clean:
 	rm -rf bin/
 
 init:
-	@if [ -f .env ]; then \
-		echo ".env already exists, skipping"; \
+	@touch .env
+	@if grep -q '^DOCUMCP_SECRET_KEY=' .env; then \
+		echo "DOCUMCP_SECRET_KEY already in .env, skipping"; \
 	else \
-		echo "DOCUMCP_SECRET_KEY=$$(openssl rand -hex 32)" > .env; \
-		echo "Created .env with generated secret key"; \
+		echo "DOCUMCP_SECRET_KEY=$$(openssl rand -hex 32)" >> .env; \
+		echo "Added DOCUMCP_SECRET_KEY to .env"; \
 	fi
 	@if [ -f config.yaml ]; then \
 		echo "config.yaml already exists, skipping"; \
