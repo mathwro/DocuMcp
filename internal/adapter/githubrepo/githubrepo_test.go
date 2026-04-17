@@ -5,10 +5,12 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/documcp/documcp/internal/adapter"
 	_ "github.com/documcp/documcp/internal/adapter/githubrepo"
@@ -329,6 +331,44 @@ func TestCrawl_401_ReturnsUnauthorizedError(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "unauthorized") {
 		t.Errorf("error should say 'unauthorized': %v", err)
+	}
+}
+
+func TestCrawl_ContextCancellation_ClosesChannel(t *testing.T) {
+	// Large tarball to ensure streaming is in progress when we cancel.
+	entries := make(map[string][]byte, 50)
+	for i := 0; i < 50; i++ {
+		entries[fmt.Sprintf("doc%d.md", i)] = []byte("# T\n\nbody.")
+	}
+	tarball := buildTarball(t, "o-r-sha", entries)
+	srv := tarballServer(t, tarball)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	_, ch, err := githubrepo.NewAdapter(srv.URL).Crawl(ctx, config.SourceConfig{
+		Type:   "github_repo",
+		Repo:   "o/r",
+		Branch: "main",
+	}, 1)
+	if err != nil {
+		t.Fatalf("Crawl: %v", err)
+	}
+
+	// Receive one page, then cancel and drain.
+	<-ch
+	cancel()
+
+	// Drain remaining pages; the goroutine must exit and close the channel.
+	done := make(chan struct{})
+	go func() {
+		for range ch {
+		}
+		close(done)
+	}()
+	select {
+	case <-done:
+		// channel closed, success
+	case <-time.After(5 * time.Second):
+		t.Fatal("Crawl goroutine did not exit within 5s of cancel")
 	}
 }
 
