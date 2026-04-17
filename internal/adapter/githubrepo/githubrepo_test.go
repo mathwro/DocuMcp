@@ -125,3 +125,59 @@ func urls(pages []db.Page) []string {
 	}
 	return out
 }
+
+func TestCrawl_IncludePath_ScopedToSubfolder(t *testing.T) {
+	tarball := buildTarball(t, "owner-repo-abc123", map[string][]byte{
+		"README.md":        []byte("# Root\n"),
+		"docs/guide.md":    []byte("# Guide\n"),
+		"docs/api/auth.md": []byte("# Auth\n"),
+	})
+	srv := tarballServer(t, tarball)
+
+	a := githubrepo.NewAdapter(srv.URL)
+	_, ch, err := a.Crawl(context.Background(), config.SourceConfig{
+		Type:        "github_repo",
+		Repo:        "owner/repo",
+		Branch:      "main",
+		IncludePath: "docs/",
+	}, 42)
+	if err != nil {
+		t.Fatalf("Crawl: %v", err)
+	}
+	pages := drainPages(context.Background(), t, ch)
+
+	if len(pages) != 2 {
+		t.Fatalf("got %d pages, want 2 (docs/guide.md, docs/api/auth.md)", len(pages))
+	}
+
+	byURL := make(map[string]db.Page, len(pages))
+	for _, p := range pages {
+		byURL[p.URL] = p
+	}
+	guide, ok := byURL["https://github.com/owner/repo/blob/main/docs/guide.md"]
+	if !ok {
+		t.Fatalf("guide page missing; got URLs %v", urls(pages))
+	}
+	if !equalStrings(guide.Path, []string{"guide"}) {
+		t.Errorf("guide.Path: got %v, want [guide]", guide.Path)
+	}
+	auth, ok := byURL["https://github.com/owner/repo/blob/main/docs/api/auth.md"]
+	if !ok {
+		t.Fatalf("auth page missing; got URLs %v", urls(pages))
+	}
+	if !equalStrings(auth.Path, []string{"api", "auth"}) {
+		t.Errorf("auth.Path: got %v, want [api auth]", auth.Path)
+	}
+}
+
+func equalStrings(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
