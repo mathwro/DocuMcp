@@ -20,8 +20,9 @@ type ServerConfig struct {
 type SourceConfig struct {
 	Name string `yaml:"name"`
 	Type string `yaml:"type"`
-	// github_wiki
-	Repo string `yaml:"repo,omitempty"`
+	// github_wiki, github_repo
+	Repo   string `yaml:"repo,omitempty"`
+	Branch string `yaml:"branch,omitempty"`
 	// web
 	URL         string `yaml:"url,omitempty"`
 	IncludePath string `yaml:"include_path,omitempty"`
