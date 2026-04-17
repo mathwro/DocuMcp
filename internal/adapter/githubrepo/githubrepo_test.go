@@ -331,3 +331,36 @@ func TestCrawl_401_ReturnsUnauthorizedError(t *testing.T) {
 		t.Errorf("error should say 'unauthorized': %v", err)
 	}
 }
+
+func TestCrawl_429_RetriesOnce(t *testing.T) {
+	tarball := buildTarball(t, "o-r-sha", map[string][]byte{"README.md": []byte("# R\n")})
+
+	var hits int
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits++
+		if hits == 1 {
+			w.Header().Set("Retry-After", "0")
+			w.WriteHeader(http.StatusTooManyRequests)
+			return
+		}
+		w.Header().Set("Content-Type", "application/x-gzip")
+		_, _ = w.Write(tarball)
+	}))
+	t.Cleanup(srv.Close)
+
+	_, ch, err := githubrepo.NewAdapter(srv.URL).Crawl(context.Background(), config.SourceConfig{
+		Type:   "github_repo",
+		Repo:   "o/r",
+		Branch: "main",
+	}, 1)
+	if err != nil {
+		t.Fatalf("Crawl: %v", err)
+	}
+	pages := drainPages(context.Background(), t, ch)
+	if hits != 2 {
+		t.Errorf("expected 2 server hits (1 retry), got %d", hits)
+	}
+	if len(pages) != 1 {
+		t.Errorf("expected 1 page after retry, got %d", len(pages))
+	}
+}

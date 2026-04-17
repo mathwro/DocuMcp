@@ -10,7 +10,9 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/documcp/documcp/internal/adapter"
 	"github.com/documcp/documcp/internal/config"
@@ -44,20 +46,9 @@ func (a *Adapter) Crawl(ctx context.Context, src config.SourceConfig, sourceID i
 	}
 	includePath := normalizeIncludePath(src.IncludePath)
 
-	tarURL := fmt.Sprintf("%s/repos/%s/tarball/%s", a.baseURL, src.Repo, url.PathEscape(branch))
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, tarURL, nil)
+	resp, err := a.fetchTarball(ctx, src, branch)
 	if err != nil {
-		return 0, nil, fmt.Errorf("github_repo: build request: %w", err)
-	}
-	req.Header.Set("Accept", "application/vnd.github+json")
-	req.Header.Set("User-Agent", "documcp")
-	if src.Token != "" {
-		req.Header.Set("Authorization", "Bearer "+src.Token)
-	}
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return 0, nil, fmt.Errorf("github_repo: fetch tarball: %w", err)
+		return 0, nil, err
 	}
 	switch resp.StatusCode {
 	case http.StatusOK:
@@ -135,6 +126,58 @@ func (a *Adapter) Crawl(ctx context.Context, src config.SourceConfig, sourceID i
 		}
 	}()
 	return 0, ch, nil
+}
+
+// fetchTarball fetches the tarball for the given branch, retrying once on 429.
+func (a *Adapter) fetchTarball(ctx context.Context, src config.SourceConfig, branch string) (*http.Response, error) {
+	tarURL := fmt.Sprintf("%s/repos/%s/tarball/%s", a.baseURL, src.Repo, url.PathEscape(branch))
+
+	var resp *http.Response
+	for attempt := 0; attempt < 2; attempt++ {
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, tarURL, nil)
+		if err != nil {
+			return nil, fmt.Errorf("github_repo: build request: %w", err)
+		}
+		req.Header.Set("Accept", "application/vnd.github+json")
+		req.Header.Set("User-Agent", "documcp")
+		if src.Token != "" {
+			req.Header.Set("Authorization", "Bearer "+src.Token)
+		}
+
+		resp, err = http.DefaultClient.Do(req)
+		if err != nil {
+			return nil, fmt.Errorf("github_repo: fetch tarball: %w", err)
+		}
+		if resp.StatusCode != http.StatusTooManyRequests || attempt == 1 {
+			return resp, nil
+		}
+
+		retryAfter := parseRetryAfterSeconds(resp.Header.Get("Retry-After"))
+		resp.Body.Close()
+		if retryAfter > 60 {
+			retryAfter = 60
+		}
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(time.Duration(retryAfter) * time.Second):
+		}
+	}
+	return resp, nil
+}
+
+// parseRetryAfterSeconds parses the Retry-After header. Only the seconds
+// integer form is honored (HTTP-date form is uncommon for GitHub). Returns
+// 0 on parse failure so tests setting "0" work and retries don't stall.
+func parseRetryAfterSeconds(v string) int {
+	if v == "" {
+		return 0
+	}
+	n, err := strconv.Atoi(strings.TrimSpace(v))
+	if err != nil || n < 0 {
+		return 0
+	}
+	return n
 }
 
 // stripRepoPrefix removes GitHub's "owner-repo-sha/" leading path segment
