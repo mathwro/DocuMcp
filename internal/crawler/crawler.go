@@ -9,6 +9,7 @@ import (
 	"github.com/documcp/documcp/internal/adapter"
 	_ "github.com/documcp/documcp/internal/adapter/azuredevops"
 	_ "github.com/documcp/documcp/internal/adapter/github"
+	_ "github.com/documcp/documcp/internal/adapter/githubrepo"
 	_ "github.com/documcp/documcp/internal/adapter/web"
 	"github.com/documcp/documcp/internal/auth"
 	"github.com/documcp/documcp/internal/config"
