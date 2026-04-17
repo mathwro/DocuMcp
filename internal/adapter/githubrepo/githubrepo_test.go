@@ -236,3 +236,56 @@ func TestCrawl_Title_FallsBackToFilename(t *testing.T) {
 		t.Errorf(".txt title (never uses H1 parse): got %q, want %q", txt.Title, "notes")
 	}
 }
+
+func TestCrawl_SendsAuthHeader_WhenTokenSet(t *testing.T) {
+	tarball := buildTarball(t, "o-r-sha", map[string][]byte{"README.md": []byte("# R\n")})
+
+	var gotAuth string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAuth = r.Header.Get("Authorization")
+		w.Header().Set("Content-Type", "application/x-gzip")
+		_, _ = w.Write(tarball)
+	}))
+	t.Cleanup(srv.Close)
+
+	_, ch, err := githubrepo.NewAdapter(srv.URL).Crawl(context.Background(), config.SourceConfig{
+		Type:   "github_repo",
+		Repo:   "o/r",
+		Branch: "main",
+		Token:  "tok123",
+	}, 1)
+	if err != nil {
+		t.Fatalf("Crawl: %v", err)
+	}
+	_ = drainPages(context.Background(), t, ch)
+
+	if gotAuth != "Bearer tok123" {
+		t.Errorf("Authorization: got %q, want %q", gotAuth, "Bearer tok123")
+	}
+}
+
+func TestCrawl_OmitsAuthHeader_WhenTokenEmpty(t *testing.T) {
+	tarball := buildTarball(t, "o-r-sha", map[string][]byte{"README.md": []byte("# R\n")})
+
+	var gotAuth string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAuth = r.Header.Get("Authorization")
+		w.Header().Set("Content-Type", "application/x-gzip")
+		_, _ = w.Write(tarball)
+	}))
+	t.Cleanup(srv.Close)
+
+	_, ch, err := githubrepo.NewAdapter(srv.URL).Crawl(context.Background(), config.SourceConfig{
+		Type:   "github_repo",
+		Repo:   "o/r",
+		Branch: "main",
+	}, 1)
+	if err != nil {
+		t.Fatalf("Crawl: %v", err)
+	}
+	_ = drainPages(context.Background(), t, ch)
+
+	if gotAuth != "" {
+		t.Errorf("Authorization: got %q, want empty", gotAuth)
+	}
+}
