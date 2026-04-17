@@ -338,6 +338,27 @@ func TestAuthRevoke_NoToken(t *testing.T) {
 	}
 }
 
+// TestIsGitHubFlow verifies the routing predicate used by authStart to decide
+// between the GitHub and Microsoft device-code branches.
+func TestIsGitHubFlow(t *testing.T) {
+	cases := []struct {
+		sourceType string
+		want       bool
+	}{
+		{"github_wiki", true},
+		{"github_repo", true},
+		{"azure_devops", false},
+		{"web", false},
+		{"", false},
+	}
+	for _, tc := range cases {
+		got := api.IsGitHubFlow(tc.sourceType)
+		if got != tc.want {
+			t.Errorf("IsGitHubFlow(%q) = %v, want %v", tc.sourceType, got, tc.want)
+		}
+	}
+}
+
 // TestAuthStart_GitHub_MockServer verifies that POST /auth/start for a
 // github_wiki source calls the GitHub device code endpoint and returns the
 // expected JSON fields.  A local httptest server stands in for github.com.

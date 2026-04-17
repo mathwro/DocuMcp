@@ -187,6 +187,12 @@ func (s *Server) searchHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, results)
 }
 
+// IsGitHubFlow reports whether the given source type should use the GitHub
+// device code flow (as opposed to the Microsoft flow).
+func IsGitHubFlow(sourceType string) bool {
+	return sourceType == "github_wiki" || sourceType == "github_repo"
+}
+
 // authStart handles POST /api/sources/{id}/auth/start.
 // Initiates a device code flow for the source and returns the user code and
 // verification URI so the Web UI can display them to the user.
@@ -208,7 +214,7 @@ func (s *Server) authStart(w http.ResponseWriter, r *http.Request) {
 
 	var pf pendingFlow
 
-	if src.Type == "github_wiki" {
+	if IsGitHubFlow(src.Type) {
 		clientID := githubClientID()
 		ghFlow, err := auth.NewGitHubDeviceFlow("https://github.com", clientID)
 		if err != nil {
