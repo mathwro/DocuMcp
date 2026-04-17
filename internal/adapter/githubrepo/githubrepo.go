@@ -59,7 +59,16 @@ func (a *Adapter) Crawl(ctx context.Context, src config.SourceConfig, sourceID i
 	if err != nil {
 		return 0, nil, fmt.Errorf("github_repo: fetch tarball: %w", err)
 	}
-	if resp.StatusCode != http.StatusOK {
+	switch resp.StatusCode {
+	case http.StatusOK:
+		// success, continue
+	case http.StatusNotFound:
+		resp.Body.Close()
+		return 0, nil, fmt.Errorf("github_repo: repo or branch not found: %s@%s", src.Repo, branch)
+	case http.StatusUnauthorized, http.StatusForbidden:
+		resp.Body.Close()
+		return 0, nil, fmt.Errorf("github_repo: unauthorized — token missing or lacks repo scope (status %d)", resp.StatusCode)
+	default:
 		resp.Body.Close()
 		return 0, nil, fmt.Errorf("github_repo: tarball status %d for %s@%s", resp.StatusCode, src.Repo, branch)
 	}

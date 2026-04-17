@@ -7,6 +7,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/documcp/documcp/internal/adapter"
@@ -287,5 +288,46 @@ func TestCrawl_OmitsAuthHeader_WhenTokenEmpty(t *testing.T) {
 
 	if gotAuth != "" {
 		t.Errorf("Authorization: got %q, want empty", gotAuth)
+	}
+}
+
+func TestCrawl_404_ReturnsNotFoundError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	t.Cleanup(srv.Close)
+
+	_, _, err := githubrepo.NewAdapter(srv.URL).Crawl(context.Background(), config.SourceConfig{
+		Type:   "github_repo",
+		Repo:   "ghost/repo",
+		Branch: "main",
+	}, 1)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "ghost/repo") || !strings.Contains(err.Error(), "main") {
+		t.Errorf("error should mention repo and branch: %v", err)
+	}
+	if !strings.Contains(err.Error(), "not found") {
+		t.Errorf("error should say 'not found': %v", err)
+	}
+}
+
+func TestCrawl_401_ReturnsUnauthorizedError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	t.Cleanup(srv.Close)
+
+	_, _, err := githubrepo.NewAdapter(srv.URL).Crawl(context.Background(), config.SourceConfig{
+		Type:   "github_repo",
+		Repo:   "o/r",
+		Branch: "main",
+	}, 1)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "unauthorized") {
+		t.Errorf("error should say 'unauthorized': %v", err)
 	}
 }
