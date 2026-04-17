@@ -29,6 +29,7 @@
         <select x-model="newSource.Type">
           <option value="web">Web</option>
           <option value="github_wiki">GitHub Wiki</option>
+          <option value="github_repo">GitHub Repo</option>
           <option value="azure_devops">Azure DevOps Wiki</option>
         </select>
         <input type="text" x-model="newSource.Name" placeholder="Source name" />
@@ -41,6 +42,16 @@
         </template>
         <template x-if="newSource.Type === 'github_wiki'">
           <input type="text" x-model="newSource.Repo" placeholder="owner/repo" />
+        </template>
+        <template x-if="newSource.Type === 'github_repo'">
+          <input type="text" x-model="newSource.Repo" placeholder="owner/repo" />
+        </template>
+        <template x-if="newSource.Type === 'github_repo'">
+          <input type="text" x-model="newSource.Branch" placeholder="Branch (default: main)" />
+        </template>
+        <template x-if="newSource.Type === 'github_repo'">
+          <input type="text" x-model="newSource.IncludePath"
+                 placeholder="Subfolder prefix (optional, e.g. docs/)" />
         </template>
         <template x-if="newSource.Type === 'azure_devops'">
           <input type="url" x-model="newSource.URL" placeholder="https://dev.azure.com/org/project" />

@@ -151,7 +151,7 @@ function app() {
     },
 
     sourceTypeName(type) {
-      const map = { web: 'Web', github_wiki: 'GitHub Wiki', azure_devops: 'Azure DevOps' }
+      const map = { web: 'Web', github_wiki: 'GitHub Wiki', github_repo: 'GitHub Repo', azure_devops: 'Azure DevOps' }
       return map[type] || type
     },
 
