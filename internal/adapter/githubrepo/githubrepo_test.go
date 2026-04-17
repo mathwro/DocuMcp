@@ -404,3 +404,20 @@ func TestCrawl_429_RetriesOnce(t *testing.T) {
 		t.Errorf("expected 1 page after retry, got %d", len(pages))
 	}
 }
+
+func TestCrawl_IncludePath_RejectsTraversal(t *testing.T) {
+	a := githubrepo.NewAdapter("http://127.0.0.1:0") // URL unused — should error before HTTP
+
+	_, _, err := a.Crawl(context.Background(), config.SourceConfig{
+		Type:        "github_repo",
+		Repo:        "o/r",
+		Branch:      "main",
+		IncludePath: "../secrets",
+	}, 1)
+	if err == nil {
+		t.Fatal("expected error for traversal include_path, got nil")
+	}
+	if !strings.Contains(err.Error(), "include_path") {
+		t.Errorf("error should mention include_path: %v", err)
+	}
+}

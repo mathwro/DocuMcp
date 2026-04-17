@@ -46,6 +46,10 @@ func (a *Adapter) Crawl(ctx context.Context, src config.SourceConfig, sourceID i
 	}
 	includePath := normalizeIncludePath(src.IncludePath)
 
+	if err := validateIncludePath(src.IncludePath); err != nil {
+		return 0, nil, err
+	}
+
 	resp, err := a.fetchTarball(ctx, src, branch)
 	if err != nil {
 		return 0, nil, err
@@ -250,6 +254,19 @@ func extractTitle(content string) string {
 		}
 	}
 	return ""
+}
+
+// validateIncludePath rejects include_path values that would escape the
+// repo root. Must be called with the raw (un-normalized) value.
+func validateIncludePath(raw string) error {
+	if raw == "" {
+		return nil
+	}
+	clean := path.Clean(strings.TrimPrefix(raw, "/"))
+	if clean == ".." || strings.HasPrefix(clean, "../") || strings.Contains(clean, "/../") {
+		return fmt.Errorf("github_repo: invalid include_path %q (must not contain '..' segments)", raw)
+	}
+	return nil
 }
 
 // filenameTitle converts a filename like "getting-started.md" into
