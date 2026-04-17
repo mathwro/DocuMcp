@@ -181,3 +181,58 @@ func equalStrings(a, b []string) bool {
 	}
 	return true
 }
+
+func TestCrawl_Title_FromFirstH1(t *testing.T) {
+	content := []byte("Some preamble\n\n# Real Title\n\nBody text.\n")
+	tarball := buildTarball(t, "owner-repo-abc123", map[string][]byte{
+		"doc.md": content,
+	})
+	srv := tarballServer(t, tarball)
+
+	_, ch, err := githubrepo.NewAdapter(srv.URL).Crawl(context.Background(), config.SourceConfig{
+		Type:   "github_repo",
+		Repo:   "o/r",
+		Branch: "main",
+	}, 1)
+	if err != nil {
+		t.Fatalf("Crawl: %v", err)
+	}
+	pages := drainPages(context.Background(), t, ch)
+	if len(pages) != 1 {
+		t.Fatalf("got %d pages, want 1", len(pages))
+	}
+	if pages[0].Title != "Real Title" {
+		t.Errorf("Title: got %q, want %q", pages[0].Title, "Real Title")
+	}
+}
+
+func TestCrawl_Title_FallsBackToFilename(t *testing.T) {
+	tarball := buildTarball(t, "owner-repo-abc123", map[string][]byte{
+		"getting-started.md": []byte("No heading here, just body."),
+		"notes.txt":          []byte("# Not a Markdown heading in a txt file"),
+	})
+	srv := tarballServer(t, tarball)
+
+	_, ch, err := githubrepo.NewAdapter(srv.URL).Crawl(context.Background(), config.SourceConfig{
+		Type:   "github_repo",
+		Repo:   "o/r",
+		Branch: "main",
+	}, 1)
+	if err != nil {
+		t.Fatalf("Crawl: %v", err)
+	}
+	pages := drainPages(context.Background(), t, ch)
+
+	byURL := make(map[string]db.Page, len(pages))
+	for _, p := range pages {
+		byURL[p.URL] = p
+	}
+	md := byURL["https://github.com/o/r/blob/main/getting-started.md"]
+	if md.Title != "getting started" {
+		t.Errorf(".md fallback title: got %q, want %q", md.Title, "getting started")
+	}
+	txt := byURL["https://github.com/o/r/blob/main/notes.txt"]
+	if txt.Title != "notes" {
+		t.Errorf(".txt title (never uses H1 parse): got %q, want %q", txt.Title, "notes")
+	}
+}

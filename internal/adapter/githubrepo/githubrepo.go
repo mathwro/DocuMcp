@@ -168,18 +168,40 @@ func buildPage(repo, branch, includePath, relPath, content string, sourceID int6
 			pathSlice = append(pathSlice, s)
 		}
 	}
+
+	title := ""
+	ext := strings.ToLower(path.Ext(rel))
+	if ext == ".md" || ext == ".mdx" {
+		title = extractTitle(content)
+	}
+	if title == "" {
+		title = filenameTitle(path.Base(rel))
+	}
+
 	return db.Page{
 		SourceID: sourceID,
 		URL:      fmt.Sprintf("https://github.com/%s/blob/%s/%s", repo, branch, relPath),
-		Title:    filenameTitle(path.Base(rel)),
+		Title:    title,
 		Content:  content,
 		Path:     pathSlice,
 	}
 }
 
+// extractTitle returns the text of the first H1 heading in Markdown content.
+// Returns "" if no H1 is present. The content must be .md or .mdx; callers
+// pass "" for .txt files.
+func extractTitle(content string) string {
+	for _, line := range strings.Split(content, "\n") {
+		trimmed := strings.TrimLeft(line, " \t")
+		if strings.HasPrefix(trimmed, "# ") {
+			return strings.TrimSpace(strings.TrimPrefix(trimmed, "# "))
+		}
+	}
+	return ""
+}
+
 // filenameTitle converts a filename like "getting-started.md" into
-// "getting started" for fallback titles. Title extraction from content
-// (H1 heading) is added in a later task.
+// "getting started" for fallback titles.
 func filenameTitle(name string) string {
 	n := strings.TrimSuffix(name, path.Ext(name))
 	n = strings.ReplaceAll(n, "-", " ")
