@@ -5,8 +5,8 @@ A self-hosted MCP (Model Context Protocol) server that indexes your documentatio
 ## Features
 
 - **Hybrid search** — combines BM25 full-text search and semantic vector search (via `all-MiniLM-L6-v2`) merged with reciprocal rank fusion
-- **Multiple source types** — public web docs, GitHub Wikis, Azure DevOps Wikis
-- **Authenticated sources** — device code flows for GitHub and Microsoft (no app registration required)
+- **Multiple source types** — public web docs, GitHub Wikis, GitHub repositories, Azure DevOps Wikis
+- **Authenticated sources** — user-supplied fine-grained PATs for GitHub, Microsoft device code flow for Azure DevOps (no app registration required)
 - **Scheduled crawling** — cron-based re-indexing keeps docs fresh
 - **Web UI** — manage sources, trigger crawls, and test searches from a browser
 - **MCP tools** — `search_docs`, `list_sources`, `browse_source`, `get_page`
@@ -67,17 +67,18 @@ Open `http://localhost:8080` to manage sources and search.
 | `server.port` | HTTP port (default: `8080`) |
 | `server.data_dir` | SQLite database directory |
 | `sources[].name` | Display name for the source |
-| `sources[].type` | `web`, `github_wiki`, or `azure_devops` |
+| `sources[].type` | `web`, `github_wiki`, `github_repo`, or `azure_devops` |
 | `sources[].url` | Base URL (web and Azure DevOps sources) |
-| `sources[].include_path` | (Web only) If set, only pages whose URL starts with this prefix are indexed. Must share the same origin as `url`. |
-| `sources[].repo` | `owner/repo` (GitHub Wiki sources) |
+| `sources[].include_path` | For `web`: restricts crawling to a URL prefix (same origin required). For `github_repo`: restricts indexing to a subfolder (e.g. `docs/`). `..` segments are rejected. |
+| `sources[].repo` | `owner/repo` (GitHub Wiki and GitHub Repo sources) |
+| `sources[].branch` | Branch name for `github_repo` sources (default: `main`) |
 | `sources[].crawl_schedule` | Cron expression, e.g. `0 2 * * *` or `@weekly` |
 
 ### Environment Variables
 
 | Variable | Description |
 |---|---|
-| `DOCUMCP_SECRET_KEY` | 32-byte hex key for encrypting stored OAuth tokens. If unset, a random key is generated per run (tokens lost on restart). |
+| `DOCUMCP_SECRET_KEY` | 32-byte hex key for encrypting stored GitHub PATs and Azure DevOps OAuth tokens in SQLite. If unset, a random key is generated per run (tokens lost on restart). |
 | `DOCUMCP_API_KEY` | Bearer token required on `/api/*` and `/mcp/*` endpoints. If unset, all endpoints are unauthenticated (warns at startup). |
 | `DOCUMCP_CONFIG` | Path to config file (default: `config.yaml`) |
 | `DOCUMCP_MODEL_PATH` | Path to the ONNX model directory |
@@ -98,7 +99,7 @@ Crawls public websites. Discovers pages via sitemap, falls back to link followin
 
 ### GitHub Wiki (`type: github_wiki`)
 
-Indexes a GitHub repository's wiki. Requires authentication via GitHub device code flow — click **Connect** in the Web UI and follow the prompts.
+Indexes a GitHub repository's wiki. Public wikis work without authentication. For private wikis, click **Connect** in the Web UI and paste a [fine-grained personal access token](https://github.com/settings/personal-access-tokens/new) with **Contents: Read-only** on the target repo.
 
 ```yaml
 - name: My Project Wiki
@@ -107,7 +108,20 @@ Indexes a GitHub repository's wiki. Requires authentication via GitHub device co
   crawl_schedule: "@daily"
 ```
 
-> **Shortcut:** Mount `~/.config/gh` into the container to reuse existing `gh` CLI credentials and skip the device flow.
+### GitHub Repo (`type: github_repo`)
+
+Indexes Markdown (`.md`, `.mdx`) and text (`.txt`) files directly from a repository's tree via the GitHub tarball endpoint. Files larger than 5 MiB are skipped. Use `include_path` to restrict indexing to a subfolder such as `docs/`.
+
+```yaml
+- name: My Project Docs
+  type: github_repo
+  repo: owner/repo
+  branch: main
+  include_path: docs/
+  crawl_schedule: "@daily"
+```
+
+Public repos work without authentication. For private repos, click **Connect** in the Web UI and paste a [fine-grained PAT](https://github.com/settings/personal-access-tokens/new) with **Contents: Read-only** on the target repo.
 
 ### Azure DevOps Wiki (`type: azure_devops`)
 
@@ -172,9 +186,9 @@ make lint    # requires golangci-lint
 ```
 cmd/documcp/          # main binary
 internal/
-  adapter/            # source adapters (web, github, azuredevops)
+  adapter/            # source adapters (web, github, githubrepo, azuredevops)
   api/                # REST API handlers and server
-  auth/               # device code flows, encrypted token store
+  auth/               # Microsoft device code flow, encrypted token store
   config/             # YAML config + file watcher
   crawler/            # crawl orchestrator + cron scheduler
   db/                 # SQLite schema, CRUD, FTS5, tokens

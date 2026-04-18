@@ -18,8 +18,8 @@ internal/config/    # YAML config + fsnotify file watcher
 internal/db/        # SQLite schema, CRUD, FTS5, tokens
 internal/search/    # FTS5 search, semantic search, RRF, browse
 internal/embed/     # ONNX embedding model wrapper (hugot)
-internal/adapter/   # Adapter interface + web/github/azuredevops impls
-internal/auth/      # Device code flows (Microsoft, GitHub), token store
+internal/adapter/   # Adapter interface + web/github/githubrepo/azuredevops impls
+internal/auth/      # Microsoft device code flow, encrypted token store
 internal/crawler/   # Crawl orchestrator + cron scheduler
 internal/mcp/       # MCP server + 4 tool handlers
 internal/api/       # REST API for Web UI
@@ -47,12 +47,13 @@ docs/plans/         # Design doc + implementation plan
 - SQLite with FTS5 (keyword) + sqlite-vec (vector) for hybrid search
 - `all-MiniLM-L6-v2` ONNX model bundled in container image — zero user setup for semantic search
 - Container support: Makefile auto-detects podman vs docker (prefers podman)
-- Auth via device code flows only — no app registrations required from users
-- Azure CLI client ID `04b07795-8ddb-461a-bbee-02f9e1bf7b46` for Microsoft flows
+- Auth: Azure DevOps uses Microsoft device code flow (Azure CLI client ID `04b07795-8ddb-461a-bbee-02f9e1bf7b46`); GitHub (wiki + repo) uses user-supplied fine-grained PATs via `PUT /api/sources/{id}/auth/token`
+- Public GitHub repos/wikis crawl without a token; PAT only required for private resources
 - Config file is source of truth; Web UI reads/writes it; watcher reloads without restart
 - Tokens stored AES-256-GCM encrypted in SQLite, never in config file
 - Crawl progress tracked server-side (`crawlingIDs map[int64]bool` in API server); `CrawlTotal` stored in DB at crawl start, `PageCount` reset to 0 and flushed every 10 pages
-- `include_path` field on web sources restricts crawling to a URL prefix; validated same-origin; forwarded through `sourceToConfig`
+- `include_path` field: on `web` sources restricts crawling to a URL prefix (validated same-origin); on `github_repo` sources restricts indexing to a subfolder (`..` segments rejected)
+- `github_repo` adapter streams `/repos/{owner}/{repo}/tarball/{branch}` via `archive/tar` + `compress/gzip`; indexes `.md`/`.mdx`/`.txt`; 5 MiB per-file cap; one 429 retry honoring `Retry-After`
 - Web adapter discovers URLs synchronously before goroutine so total count is known upfront
 - Alpine.js vendored at `web/static/alpinejs.min.js` (no CDN); CSP: `script-src 'self' 'unsafe-inline' 'unsafe-eval'`
 
@@ -64,3 +65,6 @@ All 27 original tasks complete. Post-launch improvements committed to `main`:
 - Live crawl progress UI: `N / Total pages` badge with 2s polling
 - Search UI: clickable result titles, HTML-stripped snippets, page title from `<title>` tag
 - `include_path` field for web sources (path-prefix filtering)
+- `github_repo` source adapter: tarball streaming, Markdown/txt indexing, branch + subfolder support
+- GitHub auth: replaced device code flow with user-supplied fine-grained PATs (`PUT /auth/token`) for both `github_wiki` and `github_repo`
+- UI: delete-source refresh fix; regression tests added for 403/5xx/branch URL-escape/token-revoke
