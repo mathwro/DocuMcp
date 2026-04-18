@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS sources (
     type           TEXT NOT NULL,
     url            TEXT NOT NULL DEFAULT '',
     repo           TEXT NOT NULL DEFAULT '',
+    branch         TEXT NOT NULL DEFAULT '',
     base_url       TEXT NOT NULL DEFAULT '',
     space_key      TEXT NOT NULL DEFAULT '',
     auth           TEXT NOT NULL DEFAULT '',

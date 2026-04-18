@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"os"
 	"strconv"
 	"time"
 
@@ -15,17 +14,6 @@ import (
 	"github.com/documcp/documcp/internal/db"
 	"github.com/documcp/documcp/internal/search"
 )
-
-// githubClientID returns the GitHub OAuth app client ID to use for device flows.
-// Falls back to the well-known public DocuMcp GitHub App client ID if the env
-// var GITHUB_CLIENT_ID is not set. This is a public client ID safe to embed
-// in source code; it does not act as a secret.
-func githubClientID() string {
-	if id := os.Getenv("GITHUB_CLIENT_ID"); id != "" {
-		return id
-	}
-	return "178c6fc778ccc68e1d6a" // public DocuMcp GitHub App client ID
-}
 
 // writeJSON writes v as JSON to w with the given status code.
 func writeJSON(w http.ResponseWriter, status int, v any) {
@@ -187,6 +175,12 @@ func (s *Server) searchHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, results)
 }
 
+// IsGitHubFlow reports whether the given source type should use the GitHub
+// device code flow (as opposed to the Microsoft flow).
+func IsGitHubFlow(sourceType string) bool {
+	return sourceType == "github_wiki" || sourceType == "github_repo"
+}
+
 // authStart handles POST /api/sources/{id}/auth/start.
 // Initiates a device code flow for the source and returns the user code and
 // verification URI so the Web UI can display them to the user.
@@ -206,54 +200,32 @@ func (s *Server) authStart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var pf pendingFlow
-
-	if src.Type == "github_wiki" {
-		clientID := githubClientID()
-		ghFlow, err := auth.NewGitHubDeviceFlow("https://github.com", clientID)
-		if err != nil {
-			internalError(w, "start github device flow", err)
-			return
-		}
-		pf = pendingFlow{
-			ghFlow:   ghFlow,
-			provider: "github",
-			clientID: clientID,
-		}
-		s.flowMu.Lock()
-		s.pendingFlows[id] = &pf
-		s.flowMu.Unlock()
-
-		slog.Info("auth start: GitHub device flow initiated", "source_id", id)
-		// device_code is a server-side secret used to poll the token endpoint;
-		// it must not be returned to the client where it could be exposed via XSS.
-		writeJSON(w, http.StatusOK, map[string]any{
-			"user_code":        ghFlow.UserCode,
-			"verification_uri": ghFlow.VerificationURI,
-			"expires_in":       int(time.Until(ghFlow.ExpiresAt).Seconds()),
-		})
-	} else {
-		msFlow, err := auth.NewMicrosoftDeviceFlow("https://login.microsoftonline.com", "common")
-		if err != nil {
-			internalError(w, "start microsoft device flow", err)
-			return
-		}
-		pf = pendingFlow{
-			msFlow:   msFlow,
-			provider: "microsoft",
-		}
-		s.flowMu.Lock()
-		s.pendingFlows[id] = &pf
-		s.flowMu.Unlock()
-
-		slog.Info("auth start: Microsoft device flow initiated", "source_id", id)
-		// device_code is a server-side secret; omit it from the client response.
-		writeJSON(w, http.StatusOK, map[string]any{
-			"user_code":        msFlow.UserCode,
-			"verification_uri": msFlow.VerificationURI,
-			"expires_in":       int(time.Until(msFlow.ExpiresAt).Seconds()),
-		})
+	if IsGitHubFlow(src.Type) {
+		writeError(w, http.StatusBadRequest,
+			"github sources use PUT /api/sources/{id}/auth/token with a fine-grained personal access token")
+		return
 	}
+
+	msFlow, err := auth.NewMicrosoftDeviceFlow("https://login.microsoftonline.com", "common")
+	if err != nil {
+		internalError(w, "start microsoft device flow", err)
+		return
+	}
+	pf := pendingFlow{
+		msFlow:   msFlow,
+		provider: "microsoft",
+	}
+	s.flowMu.Lock()
+	s.pendingFlows[id] = &pf
+	s.flowMu.Unlock()
+
+	slog.Info("auth start: Microsoft device flow initiated", "source_id", id)
+	// device_code is a server-side secret; omit it from the client response.
+	writeJSON(w, http.StatusOK, map[string]any{
+		"user_code":        msFlow.UserCode,
+		"verification_uri": msFlow.VerificationURI,
+		"expires_in":       int(time.Until(msFlow.ExpiresAt).Seconds()),
+	})
 }
 
 // authPoll handles GET /api/sources/{id}/auth/poll.
@@ -281,14 +253,7 @@ func (s *Server) authPoll(w http.ResponseWriter, r *http.Request) {
 	pollCtx, cancel := context.WithTimeout(r.Context(), 6*time.Second)
 	defer cancel()
 
-	var token *auth.Token
-	var pollErr error
-
-	if pf.ghFlow != nil {
-		token, pollErr = pf.ghFlow.Poll(pollCtx, pf.clientID)
-	} else {
-		token, pollErr = pf.msFlow.Poll(pollCtx)
-	}
+	token, pollErr := pf.msFlow.Poll(pollCtx)
 
 	if pollErr != nil {
 		// A context deadline exceeded means the poll interval elapsed without a
@@ -320,6 +285,60 @@ func (s *Server) authPoll(w http.ResponseWriter, r *http.Request) {
 
 	slog.Info("auth poll: token saved", "source_id", id, "provider", pf.provider)
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+// authSetToken handles PUT /api/sources/{id}/auth/token.
+// Stores a user-supplied personal access token (e.g. a fine-grained PAT) for
+// the source's GitHub provider. Only github_wiki and github_repo sources are
+// supported — Azure DevOps uses the Microsoft device-code flow instead.
+func (s *Server) authSetToken(w http.ResponseWriter, r *http.Request) {
+	id, ok := parseID(w, r)
+	if !ok {
+		return
+	}
+
+	src, err := s.store.GetSource(id)
+	if err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			writeError(w, http.StatusNotFound, "source not found")
+			return
+		}
+		internalError(w, "get source", err)
+		return
+	}
+
+	if !IsGitHubFlow(src.Type) {
+		writeError(w, http.StatusBadRequest,
+			"auth/token is only supported for github_wiki and github_repo sources")
+		return
+	}
+
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<14) // 16 KiB is more than enough for a PAT
+	var body struct {
+		Token string `json:"token"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeError(w, http.StatusBadRequest, fmt.Errorf("decode body: %w", err).Error())
+		return
+	}
+	if body.Token == "" {
+		writeError(w, http.StatusBadRequest, "token is required")
+		return
+	}
+
+	token := &auth.Token{
+		AccessToken: body.Token,
+		// Fine-grained PATs have an expiry chosen by the user on creation; we
+		// don't know it from the token itself. Leave zero — the crawler does
+		// not consult ExpiresAt.
+	}
+	if err := s.tokenStore.Save(id, "github", token); err != nil {
+		internalError(w, "save token", err)
+		return
+	}
+
+	slog.Info("auth set token: saved", "source_id", id, "provider", "github")
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // authRevoke handles DELETE /api/sources/{id}/auth.

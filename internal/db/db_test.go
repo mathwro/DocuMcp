@@ -283,3 +283,32 @@ func TestGetPageByURL_NotFound(t *testing.T) {
 		t.Errorf("expected ErrNotFound, got: %v", err)
 	}
 }
+
+func TestInsertSource_github_repo_persists_branch(t *testing.T) {
+	store, err := db.Open(":memory:")
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer store.Close()
+
+	id, err := store.InsertSource(db.Source{
+		Name:        "example",
+		Type:        "github_repo",
+		Repo:        "owner/example",
+		Branch:      "develop",
+		IncludePath: "docs/",
+	})
+	if err != nil {
+		t.Fatalf("InsertSource: %v", err)
+	}
+	got, err := store.GetSource(id)
+	if err != nil {
+		t.Fatalf("GetSource: %v", err)
+	}
+	if got.Branch != "develop" {
+		t.Errorf("Branch: got %q, want %q", got.Branch, "develop")
+	}
+	if got.IncludePath != "docs/" {
+		t.Errorf("IncludePath: got %q, want %q", got.IncludePath, "docs/")
+	}
+}

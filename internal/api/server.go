@@ -16,13 +16,10 @@ import (
 	"github.com/documcp/documcp/web"
 )
 
-// pendingFlow holds an in-progress device code flow and the metadata needed to
-// complete it.  Only one of msFlow / ghFlow will be non-nil.
+// pendingFlow holds an in-progress Microsoft device-code flow.
 type pendingFlow struct {
 	msFlow   *auth.MicrosoftDeviceFlow
-	ghFlow   *auth.GitHubDeviceFlow
 	provider string
-	clientID string // only used by GitHub flows
 }
 
 // Server is the REST API server for the Web UI.
@@ -84,6 +81,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/search", s.searchHandler)
 	s.mux.HandleFunc("POST /api/sources/{id}/auth/start", s.authStart)
 	s.mux.HandleFunc("GET /api/sources/{id}/auth/poll", s.authPoll)
+	s.mux.HandleFunc("PUT /api/sources/{id}/auth/token", s.authSetToken)
 	s.mux.HandleFunc("DELETE /api/sources/{id}/auth", s.authRevoke)
 	if s.mcpHandler != nil {
 		s.mux.Handle("/mcp/", s.mcpHandler)

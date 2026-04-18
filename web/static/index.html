@@ -29,6 +29,7 @@
         <select x-model="newSource.Type">
           <option value="web">Web</option>
           <option value="github_wiki">GitHub Wiki</option>
+          <option value="github_repo">GitHub Repo</option>
           <option value="azure_devops">Azure DevOps Wiki</option>
         </select>
         <input type="text" x-model="newSource.Name" placeholder="Source name" />
@@ -42,6 +43,16 @@
         <template x-if="newSource.Type === 'github_wiki'">
           <input type="text" x-model="newSource.Repo" placeholder="owner/repo" />
         </template>
+        <template x-if="newSource.Type === 'github_repo'">
+          <input type="text" x-model="newSource.Repo" placeholder="owner/repo" />
+        </template>
+        <template x-if="newSource.Type === 'github_repo'">
+          <input type="text" x-model="newSource.Branch" placeholder="Branch (default: main)" />
+        </template>
+        <template x-if="newSource.Type === 'github_repo'">
+          <input type="text" x-model="newSource.IncludePath"
+                 placeholder="Subfolder prefix (optional, e.g. docs/)" />
+        </template>
         <template x-if="newSource.Type === 'azure_devops'">
           <input type="url" x-model="newSource.URL" placeholder="https://dev.azure.com/org/project" />
         </template>
@@ -52,7 +63,7 @@
         </div>
       </div>
 
-      <!-- Device Code Modal -->
+      <!-- Device Code Modal (Azure DevOps) -->
       <div x-show="deviceCodePending" class="card" style="margin-bottom:1.5rem">
         <h2>Authenticate</h2>
         <p class="muted" style="margin:0.5rem 0">Visit the URL below and enter the code to connect:</p>
@@ -62,6 +73,22 @@
         </div>
         <div class="actions" style="margin-top:1rem">
           <button class="secondary" @click="cancelAuth(deviceCodePending?.sourceId)">Cancel</button>
+        </div>
+      </div>
+
+      <!-- GitHub PAT Modal -->
+      <div x-show="tokenPending" class="card" style="margin-bottom:1.5rem">
+        <h2>GitHub personal access token</h2>
+        <p class="muted" style="margin:0.5rem 0">
+          Public repositories work without a token. For private repos, create a
+          <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener" style="color:var(--accent)">fine-grained PAT</a>
+          with <strong>Contents: Read-only</strong> on the target repo, then paste it below.
+        </p>
+        <input type="password" x-model="tokenInput" placeholder="github_pat_..." autocomplete="off" />
+        <div x-show="tokenError" style="color:var(--danger);margin-bottom:0.5rem" x-text="tokenError"></div>
+        <div class="actions">
+          <button @click="saveToken()">Save</button>
+          <button class="secondary" @click="cancelTokenPrompt()">Cancel</button>
         </div>
       </div>
 
@@ -79,7 +106,7 @@
               <span class="badge badge-pending" x-text="sourceTypeName(src.Type)"></span>
             </div>
             <div class="actions">
-              <button class="secondary" @click="connectAuth(src.ID)">Connect</button>
+              <button class="secondary" @click="connectAuth(src.ID, src.Type, src.Name)" x-show="src.Type !== 'web'">Connect</button>
               <button class="secondary" @click="crawlNow(src.ID)" :disabled="isCrawling(src)">Crawl Now</button>
               <button class="danger" @click="deleteSource(src.ID)">Remove</button>
             </div>

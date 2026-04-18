@@ -9,6 +9,7 @@ import (
 	"github.com/documcp/documcp/internal/adapter"
 	_ "github.com/documcp/documcp/internal/adapter/azuredevops"
 	_ "github.com/documcp/documcp/internal/adapter/github"
+	_ "github.com/documcp/documcp/internal/adapter/githubrepo"
 	_ "github.com/documcp/documcp/internal/adapter/web"
 	"github.com/documcp/documcp/internal/auth"
 	"github.com/documcp/documcp/internal/config"
@@ -40,7 +41,7 @@ func (c *Crawler) WithTokenStore(ts *auth.TokenStore) *Crawler {
 // or empty string if the type does not require OAuth.
 func providerForType(sourceType string) string {
 	switch sourceType {
-	case "github_wiki":
+	case "github_wiki", "github_repo":
 		return "github"
 	case "azure_devops":
 		return "microsoft"
@@ -125,10 +126,15 @@ func (c *Crawler) indexEmbedding(ctx context.Context, pageID int64, page db.Page
 
 // sourceToConfig maps a db.Source to a config.SourceConfig for adapter dispatch.
 func sourceToConfig(src db.Source) config.SourceConfig {
+	branch := src.Branch
+	if branch == "" {
+		branch = "main"
+	}
 	return config.SourceConfig{
 		Name:          src.Name,
 		Type:          src.Type,
 		Repo:          src.Repo,
+		Branch:        branch,
 		URL:           src.URL,
 		Auth:          src.Auth,
 		BaseURL:       src.BaseURL,

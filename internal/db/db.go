@@ -32,6 +32,7 @@ type Source struct {
 	Type          string
 	URL           string
 	Repo          string
+	Branch        string
 	BaseURL       string
 	SpaceKey      string
 	Auth          string
@@ -68,6 +69,7 @@ func Open(dsn string) (*Store, error) {
 	// Migrations for columns added after initial release.
 	_, _ = db.Exec(`ALTER TABLE sources ADD COLUMN crawl_total INTEGER NOT NULL DEFAULT 0`)
 	_, _ = db.Exec(`ALTER TABLE sources ADD COLUMN include_path TEXT NOT NULL DEFAULT ''`)
+	_, _ = db.Exec(`ALTER TABLE sources ADD COLUMN branch TEXT NOT NULL DEFAULT ''`)
 	return &Store{db: db}, nil
 }
 
@@ -80,9 +82,9 @@ func (s *Store) DB() *sql.DB { return s.db }
 // InsertSource inserts a new source and returns its ID.
 func (s *Store) InsertSource(src Source) (int64, error) {
 	res, err := s.db.Exec(
-		`INSERT INTO sources (name, type, url, repo, base_url, space_key, auth, crawl_schedule, include_path)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		src.Name, src.Type, src.URL, src.Repo, src.BaseURL, src.SpaceKey, src.Auth, src.CrawlSchedule, src.IncludePath,
+		`INSERT INTO sources (name, type, url, repo, branch, base_url, space_key, auth, crawl_schedule, include_path)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		src.Name, src.Type, src.URL, src.Repo, src.Branch, src.BaseURL, src.SpaceKey, src.Auth, src.CrawlSchedule, src.IncludePath,
 	)
 	if err != nil {
 		return 0, fmt.Errorf("insert source: %w", err)
@@ -93,7 +95,7 @@ func (s *Store) InsertSource(src Source) (int64, error) {
 // ListSources returns all configured sources.
 func (s *Store) ListSources() ([]Source, error) {
 	rows, err := s.db.Query(
-		`SELECT id, name, type, url, repo, base_url, space_key, auth, crawl_schedule, page_count, last_crawled, crawl_total, include_path
+		`SELECT id, name, type, url, repo, branch, base_url, space_key, auth, crawl_schedule, page_count, last_crawled, crawl_total, include_path
 		 FROM sources ORDER BY id`,
 	)
 	if err != nil {
@@ -105,7 +107,7 @@ func (s *Store) ListSources() ([]Source, error) {
 	for rows.Next() {
 		var src Source
 		if err := rows.Scan(
-			&src.ID, &src.Name, &src.Type, &src.URL, &src.Repo,
+			&src.ID, &src.Name, &src.Type, &src.URL, &src.Repo, &src.Branch,
 			&src.BaseURL, &src.SpaceKey, &src.Auth, &src.CrawlSchedule, &src.PageCount, &src.LastCrawled, &src.CrawlTotal, &src.IncludePath,
 		); err != nil {
 			return nil, fmt.Errorf("scan source: %w", err)
@@ -119,10 +121,10 @@ func (s *Store) ListSources() ([]Source, error) {
 func (s *Store) GetSource(id int64) (*Source, error) {
 	var src Source
 	err := s.db.QueryRow(
-		`SELECT id, name, type, url, repo, base_url, space_key, auth, crawl_schedule, page_count, last_crawled, crawl_total, include_path
+		`SELECT id, name, type, url, repo, branch, base_url, space_key, auth, crawl_schedule, page_count, last_crawled, crawl_total, include_path
 		 FROM sources WHERE id = ?`, id,
 	).Scan(
-		&src.ID, &src.Name, &src.Type, &src.URL, &src.Repo,
+		&src.ID, &src.Name, &src.Type, &src.URL, &src.Repo, &src.Branch,
 		&src.BaseURL, &src.SpaceKey, &src.Auth, &src.CrawlSchedule, &src.PageCount, &src.LastCrawled, &src.CrawlTotal, &src.IncludePath,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
