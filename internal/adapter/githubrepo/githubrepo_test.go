@@ -334,6 +334,70 @@ func TestCrawl_401_ReturnsUnauthorizedError(t *testing.T) {
 	}
 }
 
+func TestCrawl_403_ReturnsUnauthorizedError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+	}))
+	t.Cleanup(srv.Close)
+
+	_, _, err := githubrepo.NewAdapter(srv.URL).Crawl(context.Background(), config.SourceConfig{
+		Type:   "github_repo",
+		Repo:   "o/r",
+		Branch: "main",
+	}, 1)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "unauthorized") {
+		t.Errorf("error should say 'unauthorized': %v", err)
+	}
+}
+
+func TestCrawl_5xx_ReturnsGenericError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	t.Cleanup(srv.Close)
+
+	_, _, err := githubrepo.NewAdapter(srv.URL).Crawl(context.Background(), config.SourceConfig{
+		Type:   "github_repo",
+		Repo:   "o/r",
+		Branch: "main",
+	}, 1)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "500") {
+		t.Errorf("error should include status 500: %v", err)
+	}
+}
+
+func TestCrawl_BranchName_URLEscaped(t *testing.T) {
+	tarball := buildTarball(t, "o-r-sha", map[string][]byte{"README.md": []byte("# R\n")})
+
+	var gotPath string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.EscapedPath()
+		w.Header().Set("Content-Type", "application/x-gzip")
+		_, _ = w.Write(tarball)
+	}))
+	t.Cleanup(srv.Close)
+
+	_, ch, err := githubrepo.NewAdapter(srv.URL).Crawl(context.Background(), config.SourceConfig{
+		Type:   "github_repo",
+		Repo:   "o/r",
+		Branch: "feature/new-stuff",
+	}, 1)
+	if err != nil {
+		t.Fatalf("Crawl: %v", err)
+	}
+	_ = drainPages(context.Background(), t, ch)
+
+	if !strings.HasSuffix(gotPath, "/repos/o/r/tarball/feature%2Fnew-stuff") {
+		t.Errorf("URL path: got %q, want suffix /repos/o/r/tarball/feature%%2Fnew-stuff", gotPath)
+	}
+}
+
 func TestCrawl_ContextCancellation_ClosesChannel(t *testing.T) {
 	// Large tarball to ensure streaming is in progress when we cancel.
 	entries := make(map[string][]byte, 50)

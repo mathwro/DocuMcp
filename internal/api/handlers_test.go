@@ -476,6 +476,46 @@ func TestAuthSetToken_BadBody(t *testing.T) {
 	}
 }
 
+func TestAuthSetToken_ThenRevoke_TokenGone(t *testing.T) {
+	store := openTestStore(t)
+
+	id, err := store.InsertSource(db.Source{Name: "Repo", Type: "github_repo", Repo: "o/r"})
+	if err != nil {
+		t.Fatalf("InsertSource: %v", err)
+	}
+
+	key := make([]byte, 32)
+	srv := api.NewServer(store, nil, nil, key)
+
+	// Save a token.
+	body := bytes.NewReader([]byte(`{"token":"ghp_abc"}`))
+	r := httptest.NewRequest(http.MethodPut, "/api/sources/"+itoa(id)+"/auth/token", body)
+	r.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, r)
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("set: expected 204, got %d: %s", w.Code, w.Body.String())
+	}
+
+	ts := auth.NewTokenStore(store, key)
+	if _, err := ts.Load(id, "github"); err != nil {
+		t.Fatalf("Load after save: %v", err)
+	}
+
+	// Revoke it.
+	r = httptest.NewRequest(http.MethodDelete, "/api/sources/"+itoa(id)+"/auth", nil)
+	w = httptest.NewRecorder()
+	srv.ServeHTTP(w, r)
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("revoke: expected 204, got %d: %s", w.Code, w.Body.String())
+	}
+
+	// Token must be gone.
+	if _, err := ts.Load(id, "github"); err == nil {
+		t.Fatal("Load after revoke: expected error, got nil")
+	}
+}
+
 func TestAuthSetToken_RejectsNonGitHub(t *testing.T) {
 	store := openTestStore(t)
 
