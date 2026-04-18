@@ -13,12 +13,6 @@ import (
 	"github.com/documcp/documcp/internal/db"
 )
 
-// ghNewFlowWithBase is a thin wrapper so tests can inject a fake base URL
-// without depending on the github.com live endpoint.
-func ghNewFlowWithBase(baseURL, clientID string) (*auth.GitHubDeviceFlow, error) {
-	return auth.NewGitHubDeviceFlow(baseURL, clientID)
-}
-
 func openTestStore(t *testing.T) *db.Store {
 	t.Helper()
 	store, err := db.Open(":memory:")
@@ -359,46 +353,145 @@ func TestIsGitHubFlow(t *testing.T) {
 	}
 }
 
-// TestAuthStart_GitHub_MockServer verifies that POST /auth/start for a
-// github_wiki source calls the GitHub device code endpoint and returns the
-// expected JSON fields.  A local httptest server stands in for github.com.
-func TestAuthStart_GitHub_MockServer(t *testing.T) {
-	// Stand up a fake GitHub device-code endpoint.
-	fakeMux := http.NewServeMux()
-	fakeMux.HandleFunc("/login/device/code", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{
-			"device_code":      "dev-code-abc",
-			"user_code":        "ABCD-1234",
-			"verification_uri": "https://github.com/login/device",
-			"expires_in":       900,
-			"interval":         5
-		}`))
-	})
-	fakeGH := httptest.NewServer(fakeMux)
-	defer fakeGH.Close()
+// TestAuthStart_RejectsGitHub verifies that POST /auth/start returns 400 for
+// GitHub source types. The device flow has been replaced by a user-supplied
+// fine-grained PAT (PUT /auth/token).
+func TestAuthStart_RejectsGitHub(t *testing.T) {
+	for _, srcType := range []string{"github_wiki", "github_repo"} {
+		t.Run(srcType, func(t *testing.T) {
+			store := openTestStore(t)
+			id, err := store.InsertSource(db.Source{Name: "s", Type: srcType, Repo: "o/r"})
+			if err != nil {
+				t.Fatalf("InsertSource: %v", err)
+			}
 
-	// Point the GitHub device flow at our fake server via env var override.
-	// We achieve this by setting GITHUB_BASE_URL — but since NewGitHubDeviceFlow
-	// takes baseURL as a parameter (not an env var), we test via the handler
-	// indirectly: the handler always uses "https://github.com", so this test
-	// can only verify the 404 / 500 path without network access.
-	//
-	// Instead, verify the mock-server behaviour of the flow object directly.
-	t.Run("flow object returns expected fields", func(t *testing.T) {
-		flow, err := ghNewFlowWithBase(fakeGH.URL, "test-client-id")
-		if err != nil {
-			t.Fatalf("NewGitHubDeviceFlow: %v", err)
-		}
-		if flow.UserCode != "ABCD-1234" {
-			t.Errorf("UserCode: got %q, want %q", flow.UserCode, "ABCD-1234")
-		}
-		if flow.VerificationURI != "https://github.com/login/device" {
-			t.Errorf("VerificationURI: got %q", flow.VerificationURI)
-		}
-		if flow.DeviceCode != "dev-code-abc" {
-			t.Errorf("DeviceCode: got %q", flow.DeviceCode)
-		}
-	})
+			srv := api.NewServer(store, nil, nil, make([]byte, 32))
+			r := httptest.NewRequest(http.MethodPost, "/api/sources/"+itoa(id)+"/auth/start", nil)
+			w := httptest.NewRecorder()
+			srv.ServeHTTP(w, r)
+
+			if w.Code != http.StatusBadRequest {
+				t.Fatalf("expected 400, got %d: %s", w.Code, w.Body.String())
+			}
+		})
+	}
 }
+
+// --- AuthSetToken (PUT /api/sources/{id}/auth/token) ---
+
+func TestAuthSetToken_SavesToken(t *testing.T) {
+	store := openTestStore(t)
+
+	id, err := store.InsertSource(db.Source{Name: "Repo", Type: "github_repo", Repo: "octocat/hello-world"})
+	if err != nil {
+		t.Fatalf("InsertSource: %v", err)
+	}
+
+	key := make([]byte, 32)
+	srv := api.NewServer(store, nil, nil, key)
+
+	body := bytes.NewReader([]byte(`{"token":"ghp_fine_grained_abc123"}`))
+	r := httptest.NewRequest(http.MethodPut, "/api/sources/"+itoa(id)+"/auth/token", body)
+	r.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, r)
+
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("expected 204, got %d: %s", w.Code, w.Body.String())
+	}
+
+	ts := auth.NewTokenStore(store, key)
+	tok, err := ts.Load(id, "github")
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if tok.AccessToken != "ghp_fine_grained_abc123" {
+		t.Errorf("AccessToken: got %q, want %q", tok.AccessToken, "ghp_fine_grained_abc123")
+	}
+}
+
+func TestAuthSetToken_NotFound(t *testing.T) {
+	store := openTestStore(t)
+	srv := api.NewServer(store, nil, nil, make([]byte, 32))
+
+	body := bytes.NewReader([]byte(`{"token":"x"}`))
+	r := httptest.NewRequest(http.MethodPut, "/api/sources/9999/auth/token", body)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, r)
+
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestAuthSetToken_BadID(t *testing.T) {
+	store := openTestStore(t)
+	srv := api.NewServer(store, nil, nil, make([]byte, 32))
+
+	body := bytes.NewReader([]byte(`{"token":"x"}`))
+	r := httptest.NewRequest(http.MethodPut, "/api/sources/abc/auth/token", body)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, r)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", w.Code)
+	}
+}
+
+func TestAuthSetToken_EmptyToken(t *testing.T) {
+	store := openTestStore(t)
+
+	id, err := store.InsertSource(db.Source{Name: "Repo", Type: "github_repo", Repo: "o/r"})
+	if err != nil {
+		t.Fatalf("InsertSource: %v", err)
+	}
+
+	srv := api.NewServer(store, nil, nil, make([]byte, 32))
+	body := bytes.NewReader([]byte(`{"token":""}`))
+	r := httptest.NewRequest(http.MethodPut, "/api/sources/"+itoa(id)+"/auth/token", body)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, r)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestAuthSetToken_BadBody(t *testing.T) {
+	store := openTestStore(t)
+
+	id, err := store.InsertSource(db.Source{Name: "Repo", Type: "github_repo", Repo: "o/r"})
+	if err != nil {
+		t.Fatalf("InsertSource: %v", err)
+	}
+
+	srv := api.NewServer(store, nil, nil, make([]byte, 32))
+	body := bytes.NewReader([]byte(`not-json`))
+	r := httptest.NewRequest(http.MethodPut, "/api/sources/"+itoa(id)+"/auth/token", body)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, r)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestAuthSetToken_RejectsNonGitHub(t *testing.T) {
+	store := openTestStore(t)
+
+	id, err := store.InsertSource(db.Source{Name: "Azure", Type: "azure_devops", URL: "https://dev.azure.com/o/p"})
+	if err != nil {
+		t.Fatalf("InsertSource: %v", err)
+	}
+
+	srv := api.NewServer(store, nil, nil, make([]byte, 32))
+	body := bytes.NewReader([]byte(`{"token":"x"}`))
+	r := httptest.NewRequest(http.MethodPut, "/api/sources/"+itoa(id)+"/auth/token", body)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, r)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", w.Code, w.Body.String())
+	}
+}
+

@@ -7,6 +7,9 @@ function app() {
     deviceCodePending: null,
     pollInterval: null,
     refreshInterval: null,
+    tokenPending: null,   // { sourceId, sourceName } when GitHub PAT modal is open
+    tokenInput: '',
+    tokenError: '',
 
     // Search state
     searchQuery: '',
@@ -71,7 +74,15 @@ function app() {
       await this.loadSources()
     },
 
-    async connectAuth(id) {
+    async connectAuth(id, sourceType, sourceName) {
+      // GitHub sources use a user-supplied fine-grained PAT.
+      if (sourceType === 'github_wiki' || sourceType === 'github_repo') {
+        this.tokenPending = { sourceId: id, sourceName: sourceName }
+        this.tokenInput = ''
+        this.tokenError = ''
+        return
+      }
+      // Azure DevOps uses the Microsoft device-code flow.
       try {
         const r = await fetch(`/api/sources/${id}/auth/start`, { method: 'POST' })
         if (!r.ok) { alert('Failed to start auth: ' + await r.text()); return }
@@ -80,6 +91,34 @@ function app() {
       } catch(e) {
         console.error('connectAuth:', e)
       }
+    },
+
+    async saveToken() {
+      if (!this.tokenPending) return
+      const token = this.tokenInput.trim()
+      if (!token) { this.tokenError = 'Token is required.'; return }
+      try {
+        const r = await fetch(`/api/sources/${this.tokenPending.sourceId}/auth/token`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token })
+        })
+        if (!r.ok) {
+          this.tokenError = 'Failed to save token: ' + await r.text()
+          return
+        }
+        this.tokenPending = null
+        this.tokenInput = ''
+        this.tokenError = ''
+      } catch(e) {
+        this.tokenError = e.message
+      }
+    },
+
+    cancelTokenPrompt() {
+      this.tokenPending = null
+      this.tokenInput = ''
+      this.tokenError = ''
     },
 
     startPolling(id) {
