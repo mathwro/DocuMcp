@@ -157,8 +157,6 @@ function app() {
       try {
         const r = await fetch(`/api/sources/${id}`, { method: 'DELETE' })
         if (!r.ok) { alert('Failed to delete: ' + await r.text()); return }
-        this.crawlingIds.delete(id)
-        if (this.crawlingIds.size === 0) this.stopRefresh()
         await this.loadSources()
       } catch(e) {
         console.error('deleteSource:', e)
