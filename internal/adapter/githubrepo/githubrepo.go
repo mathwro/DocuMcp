@@ -14,9 +14,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/documcp/documcp/internal/adapter"
-	"github.com/documcp/documcp/internal/config"
-	"github.com/documcp/documcp/internal/db"
+	"github.com/mathwro/DocuMcp/internal/adapter"
+	"github.com/mathwro/DocuMcp/internal/config"
+	"github.com/mathwro/DocuMcp/internal/db"
 )
 
 const maxFileSize = 5 * 1024 * 1024 // 5 MiB per file

@@ -11,9 +11,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/documcp/documcp/internal/adapter"
-	"github.com/documcp/documcp/internal/config"
-	"github.com/documcp/documcp/internal/db"
+	"github.com/mathwro/DocuMcp/internal/adapter"
+	"github.com/mathwro/DocuMcp/internal/config"
+	"github.com/mathwro/DocuMcp/internal/db"
 )
 
 func init() {
@@ -125,7 +125,7 @@ func (a *WebAdapter) Crawl(ctx context.Context, src config.SourceConfig, sourceI
 	return total, ch, nil
 }
 
-const crawlUserAgent = "DocuMcp/1.0 (documentation indexer; +https://github.com/documcp/documcp)"
+const crawlUserAgent = "DocuMcp/1.0 (documentation indexer; +https://github.com/mathwro/DocuMcp)"
 
 func fetchPage(ctx context.Context, client *http.Client, pageURL string, sourceID int64, base *url.URL) (db.Page, error) {
 	req, err := http.NewRequestWithContext(ctx, "GET", pageURL, nil)
@@ -282,7 +282,7 @@ var privateRanges = func() []*net.IPNet {
 		"10.0.0.0/8",
 		"172.16.0.0/12",
 		"192.168.0.0/16",
-		"100.64.0.0/10", // Carrier-grade NAT (RFC 6598)
+		"100.64.0.0/10",  // Carrier-grade NAT (RFC 6598)
 		"169.254.0.0/16", // IPv4 link-local
 		"::1/128",        // IPv6 loopback
 		"fc00::/7",       // IPv6 unique local

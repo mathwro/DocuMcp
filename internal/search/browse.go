@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/documcp/documcp/internal/db"
+	"github.com/mathwro/DocuMcp/internal/db"
 )
 
 // browseSectionLimit is the maximum number of pages returned by BrowseSection.

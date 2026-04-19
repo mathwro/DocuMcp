@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/documcp/documcp/internal/adapter/web"
+	"github.com/mathwro/DocuMcp/internal/adapter/web"
 )
 
 func TestExtractText_RemovesNavAndScript(t *testing.T) {

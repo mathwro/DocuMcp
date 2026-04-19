@@ -9,8 +9,8 @@ import (
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/documcp/documcp/internal/db"
-	mcpserver "github.com/documcp/documcp/internal/mcp"
+	"github.com/mathwro/DocuMcp/internal/db"
+	mcpserver "github.com/mathwro/DocuMcp/internal/mcp"
 )
 
 // openTestDB creates a temporary SQLite database for testing.
@@ -359,4 +359,3 @@ func TestSearchDocs_ResultDTO(t *testing.T) {
 		t.Error("expected 'snippet' field in result")
 	}
 }
-

@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/documcp/documcp/internal/db"
-	"github.com/documcp/documcp/internal/search"
+	"github.com/mathwro/DocuMcp/internal/db"
+	"github.com/mathwro/DocuMcp/internal/search"
 )
 
 func setupTestDB(t *testing.T) *db.Store {

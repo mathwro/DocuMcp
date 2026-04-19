@@ -6,8 +6,8 @@ import (
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/documcp/documcp/internal/db"
-	"github.com/documcp/documcp/internal/embed"
+	"github.com/mathwro/DocuMcp/internal/db"
+	"github.com/mathwro/DocuMcp/internal/embed"
 )
 
 // Server wraps the go-sdk MCP server and holds references to the data layer.

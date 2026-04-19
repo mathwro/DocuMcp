@@ -7,8 +7,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/documcp/documcp/internal/adapter/azuredevops"
-	"github.com/documcp/documcp/internal/config"
+	"github.com/mathwro/DocuMcp/internal/adapter/azuredevops"
+	"github.com/mathwro/DocuMcp/internal/config"
 )
 
 func TestAzureDevOpsAdapter_CrawlsWikiPages(t *testing.T) {

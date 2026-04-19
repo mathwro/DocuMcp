@@ -26,7 +26,7 @@ type SourceConfig struct {
 	// web
 	URL         string `yaml:"url,omitempty"`
 	IncludePath string `yaml:"include_path,omitempty"`
-	Auth string `yaml:"auth,omitempty"`
+	Auth        string `yaml:"auth,omitempty"`
 	// confluence
 	BaseURL  string `yaml:"base_url,omitempty"`
 	SpaceKey string `yaml:"space_key,omitempty"`

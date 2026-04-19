@@ -5,7 +5,7 @@ import (
 	"net/url"
 	"testing"
 
-	"github.com/documcp/documcp/internal/config"
+	"github.com/mathwro/DocuMcp/internal/config"
 )
 
 func TestCrawl_IncludePath_InvalidURL(t *testing.T) {
@@ -42,10 +42,10 @@ func TestFilterURL_IncludePathFiltersCorrectly(t *testing.T) {
 	}{
 		{"https://docs.example.com/docs/guide/page1", true},
 		{"https://docs.example.com/docs/guide/", true},
-		{"https://docs.example.com/docs/guide", true}, // exact path without trailing slash
-		{"https://docs.example.com/docs/api/page2", false},  // wrong section
-		{"https://docs.example.com/docs/", false},           // parent path
-		{"https://other.com/docs/guide/page1", false},       // cross-origin
+		{"https://docs.example.com/docs/guide", true},      // exact path without trailing slash
+		{"https://docs.example.com/docs/api/page2", false}, // wrong section
+		{"https://docs.example.com/docs/", false},          // parent path
+		{"https://other.com/docs/guide/page1", false},      // cross-origin
 	}
 
 	for _, tc := range cases {

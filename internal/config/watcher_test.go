@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/documcp/documcp/internal/config"
+	"github.com/mathwro/DocuMcp/internal/config"
 )
 
 func TestWatcher_CallsCallbackOnChange(t *testing.T) {

@@ -3,7 +3,7 @@ package crawler
 import (
 	"testing"
 
-	"github.com/documcp/documcp/internal/db"
+	"github.com/mathwro/DocuMcp/internal/db"
 )
 
 func TestSourceToConfig_github_repo_defaults_branch_to_main(t *testing.T) {

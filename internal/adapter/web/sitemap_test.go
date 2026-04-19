@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/documcp/documcp/internal/adapter/web"
+	"github.com/mathwro/DocuMcp/internal/adapter/web"
 )
 
 func TestParseSitemap(t *testing.T) {

@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/documcp/documcp/internal/auth"
+	"github.com/mathwro/DocuMcp/internal/auth"
 )
 
 func TestMicrosoftDeviceFlow_InitiatesSuccessfully(t *testing.T) {

@@ -6,15 +6,15 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/documcp/documcp/internal/adapter"
-	_ "github.com/documcp/documcp/internal/adapter/azuredevops"
-	_ "github.com/documcp/documcp/internal/adapter/github"
-	_ "github.com/documcp/documcp/internal/adapter/githubrepo"
-	_ "github.com/documcp/documcp/internal/adapter/web"
-	"github.com/documcp/documcp/internal/auth"
-	"github.com/documcp/documcp/internal/config"
-	"github.com/documcp/documcp/internal/db"
-	"github.com/documcp/documcp/internal/embed"
+	"github.com/mathwro/DocuMcp/internal/adapter"
+	_ "github.com/mathwro/DocuMcp/internal/adapter/azuredevops"
+	_ "github.com/mathwro/DocuMcp/internal/adapter/github"
+	_ "github.com/mathwro/DocuMcp/internal/adapter/githubrepo"
+	_ "github.com/mathwro/DocuMcp/internal/adapter/web"
+	"github.com/mathwro/DocuMcp/internal/auth"
+	"github.com/mathwro/DocuMcp/internal/config"
+	"github.com/mathwro/DocuMcp/internal/db"
+	"github.com/mathwro/DocuMcp/internal/embed"
 )
 
 // Crawler dispatches crawl jobs to the appropriate adapter, persists pages,

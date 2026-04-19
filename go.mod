@@ -1,4 +1,4 @@
-module github.com/documcp/documcp
+module github.com/mathwro/DocuMcp
 
 go 1.26.0
 

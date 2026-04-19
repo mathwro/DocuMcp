@@ -8,8 +8,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/documcp/documcp/internal/adapter/github"
-	"github.com/documcp/documcp/internal/config"
+	"github.com/mathwro/DocuMcp/internal/adapter/github"
+	"github.com/mathwro/DocuMcp/internal/config"
 )
 
 func TestGitHubAdapter_CrawlsWikiPages(t *testing.T) {
