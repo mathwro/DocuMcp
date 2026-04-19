@@ -82,6 +82,7 @@ Open `http://localhost:8080` to manage sources and search.
 | `DOCUMCP_API_KEY` | Bearer token required on `/api/*` and `/mcp/*` endpoints. If unset, all endpoints are unauthenticated (warns at startup). |
 | `DOCUMCP_CONFIG` | Path to config file (default: `config.yaml`) |
 | `DOCUMCP_MODEL_PATH` | Path to the ONNX model directory |
+| `DOCUMCP_BIND_ADDR` | Address to listen on. Defaults to `127.0.0.1:<port>` so a fresh install is not reachable from the network. The Docker image sets this to `0.0.0.0:8080` so the container's port mapping works; when running the binary directly, set `DOCUMCP_BIND_ADDR=0.0.0.0:8080` to expose it on the LAN. |
 
 ## Source Types
 

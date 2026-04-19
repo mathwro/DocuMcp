@@ -20,6 +20,10 @@ services:
       # Optional: bearer token required on /api/* and /mcp/* endpoints.
       # If empty, those endpoints are open (warns at startup).
       - DOCUMCP_API_KEY=${DOCUMCP_API_KEY:-}
+      # Optional: override the address the server binds to. The image sets
+      # 0.0.0.0:8080 so the compose port mapping works; only set this if you
+      # need a different port.
+      # - DOCUMCP_BIND_ADDR=0.0.0.0:8080
 
 volumes:
   documcp_data:
