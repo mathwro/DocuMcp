@@ -42,6 +42,12 @@ USER documcp
 
 EXPOSE 8080
 
+# The binary binds to 127.0.0.1 by default to avoid exposing a fresh install on
+# a host's LAN. Inside the container we must bind all interfaces so port
+# forwarding (-p 8080:8080) reaches the process. Override at `docker run` time
+# with -e DOCUMCP_BIND_ADDR=... if a different address/port is needed.
+ENV DOCUMCP_BIND_ADDR=0.0.0.0:8080
+
 # /app/data  — SQLite database and encrypted token store
 # /app/config.yaml — source-of-truth config (mount from host)
 VOLUME ["/app/data", "/app/config.yaml"]

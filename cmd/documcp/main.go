@@ -76,7 +76,7 @@ func main() {
 	// Warn if no API key is configured — the API and MCP endpoints are open.
 	api.LogAPIKeyWarning()
 
-	addr := fmt.Sprintf(":%d", cfg.Server.Port)
+	addr := bindAddr(cfg.Server.Port)
 	slog.Info("starting DocuMcp", "addr", addr)
 
 	srv := &http.Server{
@@ -154,4 +154,15 @@ func getenv(key, def string) string {
 		return v
 	}
 	return def
+}
+
+// bindAddr returns the address to listen on. DOCUMCP_BIND_ADDR takes
+// precedence (e.g. "0.0.0.0:8080" in containers). Otherwise the server
+// binds to loopback on the configured port so a default install is not
+// reachable from the network. Set DOCUMCP_BIND_ADDR to expose it.
+func bindAddr(port int) string {
+	if v := os.Getenv("DOCUMCP_BIND_ADDR"); v != "" {
+		return v
+	}
+	return fmt.Sprintf("127.0.0.1:%d", port)
 }
