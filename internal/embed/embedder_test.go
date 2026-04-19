@@ -4,7 +4,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/documcp/documcp/internal/embed"
+	"github.com/mathwro/DocuMcp/internal/embed"
 )
 
 func TestEmbedder_ProducesVectors(t *testing.T) {

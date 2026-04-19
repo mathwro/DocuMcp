@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/documcp/documcp/internal/db"
+	"github.com/mathwro/DocuMcp/internal/db"
 )
 
 func TestOpen_CreatesSchema(t *testing.T) {

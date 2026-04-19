@@ -10,9 +10,9 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/documcp/documcp/internal/auth"
-	"github.com/documcp/documcp/internal/db"
-	"github.com/documcp/documcp/internal/search"
+	"github.com/mathwro/DocuMcp/internal/auth"
+	"github.com/mathwro/DocuMcp/internal/db"
+	"github.com/mathwro/DocuMcp/internal/search"
 )
 
 // writeJSON writes v as JSON to w with the given status code.

@@ -3,7 +3,7 @@ package search_test
 import (
 	"testing"
 
-	"github.com/documcp/documcp/internal/search"
+	"github.com/mathwro/DocuMcp/internal/search"
 )
 
 func makeResult(url string, score float64) search.Result {

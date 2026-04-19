@@ -5,8 +5,8 @@ import (
 	"log/slog"
 	"sync"
 
-	"github.com/documcp/documcp/internal/config"
-	"github.com/documcp/documcp/internal/db"
+	"github.com/mathwro/DocuMcp/internal/config"
+	"github.com/mathwro/DocuMcp/internal/db"
 	"github.com/robfig/cron/v3"
 )
 

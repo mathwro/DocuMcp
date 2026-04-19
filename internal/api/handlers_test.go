@@ -8,9 +8,9 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/documcp/documcp/internal/api"
-	"github.com/documcp/documcp/internal/auth"
-	"github.com/documcp/documcp/internal/db"
+	"github.com/mathwro/DocuMcp/internal/api"
+	"github.com/mathwro/DocuMcp/internal/auth"
+	"github.com/mathwro/DocuMcp/internal/db"
 )
 
 func openTestStore(t *testing.T) *db.Store {
@@ -534,4 +534,3 @@ func TestAuthSetToken_RejectsNonGitHub(t *testing.T) {
 		t.Fatalf("expected 400, got %d: %s", w.Code, w.Body.String())
 	}
 }
-

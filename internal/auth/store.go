@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/documcp/documcp/internal/db"
+	"github.com/mathwro/DocuMcp/internal/db"
 )
 
 // TokenStore encrypts and stores OAuth tokens in SQLite using AES-256-GCM.

@@ -4,8 +4,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/documcp/documcp/internal/auth"
-	"github.com/documcp/documcp/internal/db"
+	"github.com/mathwro/DocuMcp/internal/auth"
+	"github.com/mathwro/DocuMcp/internal/db"
 )
 
 func TestTokenStore_SaveAndLoad(t *testing.T) {

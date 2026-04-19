@@ -10,10 +10,10 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/documcp/documcp/internal/auth"
-	"github.com/documcp/documcp/internal/crawler"
-	"github.com/documcp/documcp/internal/db"
-	"github.com/documcp/documcp/web"
+	"github.com/mathwro/DocuMcp/internal/auth"
+	"github.com/mathwro/DocuMcp/internal/crawler"
+	"github.com/mathwro/DocuMcp/internal/db"
+	"github.com/mathwro/DocuMcp/web"
 )
 
 // pendingFlow holds an in-progress Microsoft device-code flow.

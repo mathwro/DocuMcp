@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/documcp/documcp/internal/config"
+	"github.com/mathwro/DocuMcp/internal/config"
 )
 
 func TestLoadConfig_ValidFile(t *testing.T) {

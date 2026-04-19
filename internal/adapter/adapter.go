@@ -3,8 +3,8 @@ package adapter
 import (
 	"context"
 
-	"github.com/documcp/documcp/internal/config"
-	"github.com/documcp/documcp/internal/db"
+	"github.com/mathwro/DocuMcp/internal/config"
+	"github.com/mathwro/DocuMcp/internal/db"
 )
 
 // Adapter is implemented by each documentation source type.

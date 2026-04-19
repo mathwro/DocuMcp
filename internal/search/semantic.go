@@ -3,8 +3,8 @@ package search
 import (
 	"fmt"
 
-	"github.com/documcp/documcp/internal/db"
-	"github.com/documcp/documcp/internal/embed"
+	"github.com/mathwro/DocuMcp/internal/db"
+	"github.com/mathwro/DocuMcp/internal/embed"
 )
 
 // Semantic runs a nearest-neighbour vector search using sqlite-vec.

@@ -12,11 +12,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/documcp/documcp/internal/adapter"
-	_ "github.com/documcp/documcp/internal/adapter/githubrepo"
-	"github.com/documcp/documcp/internal/adapter/githubrepo"
-	"github.com/documcp/documcp/internal/config"
-	"github.com/documcp/documcp/internal/db"
+	"github.com/mathwro/DocuMcp/internal/adapter"
+	"github.com/mathwro/DocuMcp/internal/adapter/githubrepo"
+	_ "github.com/mathwro/DocuMcp/internal/adapter/githubrepo"
+	"github.com/mathwro/DocuMcp/internal/config"
+	"github.com/mathwro/DocuMcp/internal/db"
 )
 
 func TestAdapterRegistered(t *testing.T) {

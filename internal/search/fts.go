@@ -3,7 +3,7 @@ package search
 import (
 	"fmt"
 
-	"github.com/documcp/documcp/internal/db"
+	"github.com/mathwro/DocuMcp/internal/db"
 )
 
 // FTS performs a full-text search using SQLite FTS5 BM25 ranking.

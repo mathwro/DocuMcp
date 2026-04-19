@@ -9,9 +9,9 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/documcp/documcp/internal/adapter"
-	"github.com/documcp/documcp/internal/config"
-	"github.com/documcp/documcp/internal/db"
+	"github.com/mathwro/DocuMcp/internal/adapter"
+	"github.com/mathwro/DocuMcp/internal/config"
+	"github.com/mathwro/DocuMcp/internal/db"
 )
 
 func init() {

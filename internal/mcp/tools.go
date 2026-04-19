@@ -10,8 +10,8 @@ import (
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/documcp/documcp/internal/db"
-	"github.com/documcp/documcp/internal/search"
+	"github.com/mathwro/DocuMcp/internal/db"
+	"github.com/mathwro/DocuMcp/internal/search"
 )
 
 // sourceInfo is the MCP-facing representation of a documentation source.
@@ -66,7 +66,7 @@ var objectSchema = json.RawMessage(`{"type":"object"}`)
 // registerTools adds all four MCP tools to the server.
 func (s *Server) registerTools() {
 	s.server.AddTool(&sdkmcp.Tool{
-		Name:        "list_sources",
+		Name: "list_sources",
 		Description: "List all configured documentation sources with their names, types, URLs, " +
 			"page counts, and last crawl times. Call this first if you do not know what sources " +
 			"are available. Source names are required parameters for search_docs and browse_source.",
@@ -74,7 +74,7 @@ func (s *Server) registerTools() {
 	}, s.handleListSources)
 
 	s.server.AddTool(&sdkmcp.Tool{
-		Name:        "search_docs",
+		Name: "search_docs",
 		Description: "Start here for any documentation question. Searches all indexed sources using " +
 			"hybrid BM25 + semantic search and returns up to 10 results ranked by relevance. Each " +
 			"result includes the source name, section path, and a short excerpt (~200 chars) centred " +
@@ -91,7 +91,7 @@ func (s *Server) registerTools() {
 	}, s.handleSearchDocs)
 
 	s.server.AddTool(&sdkmcp.Tool{
-		Name:        "browse_source",
+		Name: "browse_source",
 		Description: "Explore the structure of a documentation source. Without section: returns all " +
 			"top-level sections with page counts — use this to understand what a source contains. " +
 			"With section: returns up to 50 pages (URL + title) in that section. Prefer search_docs " +
@@ -108,7 +108,7 @@ func (s *Server) registerTools() {
 	}, s.handleBrowseSource)
 
 	s.server.AddTool(&sdkmcp.Tool{
-		Name:        "get_page",
+		Name: "get_page",
 		Description: "Retrieve the full content of a single documentation page by URL. Only call " +
 			"this after confirming relevance — use search_docs first to find candidate URLs and " +
 			"read their excerpts. Returns the complete page text, which may be large for reference " +

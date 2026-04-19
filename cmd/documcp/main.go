@@ -13,13 +13,13 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/documcp/documcp/internal/api"
-	"github.com/documcp/documcp/internal/auth"
-	"github.com/documcp/documcp/internal/config"
-	"github.com/documcp/documcp/internal/crawler"
-	"github.com/documcp/documcp/internal/db"
-	"github.com/documcp/documcp/internal/embed"
-	"github.com/documcp/documcp/internal/mcp"
+	"github.com/mathwro/DocuMcp/internal/api"
+	"github.com/mathwro/DocuMcp/internal/auth"
+	"github.com/mathwro/DocuMcp/internal/config"
+	"github.com/mathwro/DocuMcp/internal/crawler"
+	"github.com/mathwro/DocuMcp/internal/db"
+	"github.com/mathwro/DocuMcp/internal/embed"
+	"github.com/mathwro/DocuMcp/internal/mcp"
 )
 
 func main() {
