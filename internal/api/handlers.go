@@ -142,6 +142,11 @@ func (s *Server) triggerCrawl(w http.ResponseWriter, r *http.Request) {
 
 	if s.crawler != nil {
 		s.crawlingMu.Lock()
+		if s.crawlingIDs[id] {
+			s.crawlingMu.Unlock()
+			writeError(w, http.StatusConflict, "crawl already in progress for this source")
+			return
+		}
 		s.crawlingIDs[id] = true
 		s.crawlingMu.Unlock()
 		crawlCtx := s.ctx

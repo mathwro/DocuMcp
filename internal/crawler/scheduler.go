@@ -16,14 +16,19 @@ type Scheduler struct {
 	cron    *cron.Cron
 	crawler *Crawler
 	store   *db.Store
+	ctx     context.Context    // base context for scheduled crawls
+	cancel  context.CancelFunc // cancels ctx on Stop
 }
 
 // NewScheduler returns a new Scheduler. Call Load to register jobs and start the cron runner.
 func NewScheduler(c *Crawler, store *db.Store) *Scheduler {
+	ctx, cancel := context.WithCancel(context.Background())
 	return &Scheduler{
 		cron:    cron.New(),
 		crawler: c,
 		store:   store,
+		ctx:     ctx,
+		cancel:  cancel,
 	}
 }
 
@@ -52,7 +57,7 @@ func (s *Scheduler) Load(cfg *config.Config) {
 			for _, dbSrc := range sources {
 				if dbSrc.Name == srcCopy.Name {
 					slog.Info("scheduled crawl", "source", dbSrc.Name)
-					if err := s.crawler.Crawl(context.Background(), dbSrc); err != nil {
+					if err := s.crawler.Crawl(s.ctx, dbSrc); err != nil {
 						slog.Error("scheduled crawl failed", "source", dbSrc.Name, "err", err)
 					}
 					return
@@ -69,10 +74,12 @@ func (s *Scheduler) Load(cfg *config.Config) {
 }
 
 // Stop halts all scheduled crawl jobs and returns a context that is cancelled
-// once all in-flight jobs have finished. Callers may block on ctx.Done() to
-// wait for a clean shutdown.
+// once all in-flight jobs have finished. The base scheduler context is also
+// cancelled so any long-running crawl observes ctx.Done() and unwinds promptly
+// rather than stalling shutdown.
 func (s *Scheduler) Stop() context.Context {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.cancel()
 	return s.cron.Stop()
 }

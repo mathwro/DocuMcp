@@ -118,8 +118,11 @@ func securityMiddleware(next http.Handler) http.Handler {
 		h.Set("X-Content-Type-Options", "nosniff")
 		h.Set("X-Frame-Options", "DENY")
 		h.Set("Referrer-Policy", "no-referrer")
+		// Alpine.js requires 'unsafe-eval' to evaluate directive expressions.
+		// 'unsafe-inline' is kept on style-src for the UI's inline style="..."
+		// attributes; it is NOT on script-src — no inline <script> is emitted.
 		h.Set("Content-Security-Policy",
-			"default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'")
+			"default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'")
 
 		// CORS: only allow cross-origin requests from loopback addresses.
 		// Requests from external sites are denied by omitting the header.
