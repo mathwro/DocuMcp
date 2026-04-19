@@ -1,12 +1,28 @@
 package db_test
 
 import (
+	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/mathwro/DocuMcp/internal/db"
 )
+
+func TestSource_MarshalJSON_OmitsAuthToken(t *testing.T) {
+	src := db.Source{ID: 1, Name: "s", Type: "github_repo", Auth: "ghp_supersecrettoken"}
+	b, err := json.Marshal(src)
+	if err != nil {
+		t.Fatalf("json.Marshal: %v", err)
+	}
+	if strings.Contains(string(b), "ghp_supersecrettoken") {
+		t.Errorf("Auth token leaked into JSON: %s", b)
+	}
+	if strings.Contains(string(b), `"Auth"`) {
+		t.Errorf("Auth field key present in JSON: %s", b)
+	}
+}
 
 func TestOpen_CreatesSchema(t *testing.T) {
 	store, err := db.Open(":memory:")

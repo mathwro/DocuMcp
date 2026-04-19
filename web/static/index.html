@@ -68,7 +68,7 @@
         <h2>Authenticate</h2>
         <p class="muted" style="margin:0.5rem 0">Visit the URL below and enter the code to connect:</p>
         <div class="device-code-box">
-          <p><a :href="deviceCodePending?.verification_uri" target="_blank" x-text="deviceCodePending?.verification_uri" style="color:var(--accent)"></a></p>
+          <p><a :href="safeHref(deviceCodePending?.verification_uri)" target="_blank" rel="noopener noreferrer" x-text="deviceCodePending?.verification_uri" style="color:var(--accent)"></a></p>
           <div class="device-code" x-text="deviceCodePending?.user_code"></div>
         </div>
         <div class="actions" style="margin-top:1rem">
@@ -133,7 +133,7 @@
       <div class="card" x-show="searchResults.length > 0">
         <template x-for="result in searchResults" :key="result.URL">
           <div class="search-result">
-            <a class="result-title" :href="result.URL" target="_blank" rel="noopener noreferrer" x-text="resultTitle(result)"></a>
+            <a class="result-title" :href="safeHref(result.URL)" target="_blank" rel="noopener noreferrer" x-text="resultTitle(result)"></a>
             <div class="result-meta" x-text="result.URL + ' · score: ' + (result.Score || 0).toFixed(4)"></div>
             <div class="result-snippet" x-text="result.Snippet ? result.Snippet.substring(0, 300) : ''"></div>
           </div>

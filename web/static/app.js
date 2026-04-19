@@ -179,6 +179,16 @@ function app() {
       }
     },
 
+    // safeHref returns u only if it is a plain http(s) URL. Anything else
+    // (javascript:, data:, file:, etc.) collapses to "#" so a malicious
+    // source URL cannot execute script via the href binding.
+    safeHref(u) {
+      if (typeof u !== 'string') return '#'
+      const s = u.trim()
+      if (/^https?:\/\//i.test(s)) return s
+      return '#'
+    },
+
     resultTitle(r) {
       if (r.Title) return r.Title
       try {

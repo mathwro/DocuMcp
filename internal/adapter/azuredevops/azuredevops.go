@@ -12,6 +12,7 @@ import (
 	"github.com/mathwro/DocuMcp/internal/adapter"
 	"github.com/mathwro/DocuMcp/internal/config"
 	"github.com/mathwro/DocuMcp/internal/db"
+	"github.com/mathwro/DocuMcp/internal/httpsafe"
 )
 
 func init() {
@@ -40,7 +41,7 @@ func (a *AzureDevOpsAdapter) Crawl(ctx context.Context, src config.SourceConfig,
 
 		// src.Token is populated by the crawler from the token store.
 		token := src.Token
-		client := &http.Client{}
+		client := &http.Client{CheckRedirect: httpsafe.CheckRedirect}
 
 		// Determine base API URL: adapter override wins, then source BaseURL.
 		apiBase := a.baseURL

@@ -2,11 +2,28 @@ package web
 
 import (
 	"context"
+	"net"
 	"net/url"
 	"testing"
 
 	"github.com/mathwro/DocuMcp/internal/config"
+	"github.com/mathwro/DocuMcp/internal/httpsafe"
 )
+
+// withLookup swaps the resolver on the shared httpsafe package for the
+// duration of the test. It lives here so the web-level filterURL tests
+// can still stub DNS; the deeper coverage is in internal/httpsafe.
+func withLookup(t *testing.T, ips map[string][]net.IP) {
+	t.Helper()
+	original := httpsafe.LookupHostIPs
+	httpsafe.LookupHostIPs = func(_ context.Context, host string) ([]net.IP, error) {
+		if v, ok := ips[host]; ok {
+			return v, nil
+		}
+		return nil, &net.DNSError{Err: "no such host", Name: host, IsNotFound: true}
+	}
+	t.Cleanup(func() { httpsafe.LookupHostIPs = original })
+}
 
 func TestCrawl_IncludePath_InvalidURL(t *testing.T) {
 	a := &WebAdapter{}
@@ -33,6 +50,10 @@ func TestCrawl_IncludePath_CrossOrigin(t *testing.T) {
 }
 
 func TestFilterURL_IncludePathFiltersCorrectly(t *testing.T) {
+	withLookup(t, map[string][]net.IP{
+		"docs.example.com": {net.ParseIP("1.2.3.4")},
+		"other.com":        {net.ParseIP("5.6.7.8")},
+	})
 	base := mustParseURL("https://docs.example.com/docs/")
 	filterPath := "/docs/guide/"
 
@@ -50,7 +71,7 @@ func TestFilterURL_IncludePathFiltersCorrectly(t *testing.T) {
 
 	for _, tc := range cases {
 		u := mustParseURL(tc.rawURL)
-		got := filterURL(u, base, filterPath)
+		got := filterURL(context.Background(), u, base, filterPath)
 		if got != tc.want {
 			t.Errorf("filterURL(%q, base, %q) = %v, want %v", tc.rawURL, filterPath, got, tc.want)
 		}

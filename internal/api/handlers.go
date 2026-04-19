@@ -7,7 +7,9 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/mathwro/DocuMcp/internal/auth"
@@ -35,6 +37,46 @@ func writeError(w http.ResponseWriter, status int, msg string) {
 func internalError(w http.ResponseWriter, op string, err error) {
 	slog.Error(op, "err", err)
 	writeError(w, http.StatusInternalServerError, "internal server error")
+}
+
+// validateHTTPURL returns an error if raw is not a syntactically valid
+// http(s):// URL with a non-empty host. The field name is used for error
+// messages only.
+func validateHTTPURL(raw, field string) error {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return fmt.Errorf("%s: parse %q: %w", field, raw, err)
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return fmt.Errorf("%s: scheme must be http or https, got %q", field, u.Scheme)
+	}
+	if u.Host == "" {
+		return fmt.Errorf("%s: host is required", field)
+	}
+	return nil
+}
+
+// validateSourceURLs enforces that every URL field on src is http(s) with a host.
+// Empty URLs are allowed for source types that don't require them.
+func validateSourceURLs(src db.Source) error {
+	if src.URL != "" {
+		if err := validateHTTPURL(src.URL, "url"); err != nil {
+			return err
+		}
+	}
+	if src.BaseURL != "" {
+		if err := validateHTTPURL(src.BaseURL, "base_url"); err != nil {
+			return err
+		}
+	}
+	if src.IncludePath != "" && strings.Contains(src.IncludePath, "://") {
+		// IncludePath is a URL for web sources; for github_repo it's a bare subpath.
+		// If it looks like a URL, validate the scheme.
+		if err := validateHTTPURL(src.IncludePath, "include_path"); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // parseID reads the path parameter named "id" and returns it as int64.
@@ -81,6 +123,11 @@ func (s *Server) createSource(w http.ResponseWriter, r *http.Request) {
 	var src db.Source
 	if err := json.NewDecoder(r.Body).Decode(&src); err != nil {
 		writeError(w, http.StatusBadRequest, fmt.Errorf("decode body: %w", err).Error())
+		return
+	}
+
+	if err := validateSourceURLs(src); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 

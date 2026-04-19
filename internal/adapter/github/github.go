@@ -12,6 +12,7 @@ import (
 	"github.com/mathwro/DocuMcp/internal/adapter"
 	"github.com/mathwro/DocuMcp/internal/config"
 	"github.com/mathwro/DocuMcp/internal/db"
+	"github.com/mathwro/DocuMcp/internal/httpsafe"
 )
 
 func init() {
@@ -41,7 +42,7 @@ func (a *GitHubAdapter) Crawl(ctx context.Context, src config.SourceConfig, sour
 
 		// src.Token is populated by the crawler from the token store.
 		token := src.Token
-		client := &http.Client{}
+		client := &http.Client{CheckRedirect: httpsafe.CheckRedirect}
 
 		// Fetch the full git tree for the wiki (recursive=1 flattens the tree).
 		treeURL := fmt.Sprintf("%s/repos/%s/git/trees/master?recursive=1", a.baseURL, src.Repo)
