@@ -21,8 +21,9 @@ internal/config/    # YAML config + fsnotify file watcher
 internal/db/        # SQLite schema, CRUD, FTS5, tokens, migrations
 internal/search/    # FTS5 + semantic search + RRF + browse
 internal/embed/     # ONNX embedding inference (hugot)
-internal/adapter/   # Adapter interface + web/github/azuredevops impls
-internal/auth/      # Device code flows (Microsoft, GitHub), encrypted token store
+internal/adapter/   # Adapter interface + web/github/githubrepo/azuredevops impls
+internal/auth/      # Microsoft device code flow, encrypted token store
+internal/httpsafe/  # SSRF defenses shared by all HTTP clients
 internal/crawler/   # Crawl orchestrator + cron scheduler
 internal/mcp/       # MCP server — 4 tools via go-sdk SSE
 internal/api/       # REST API handlers + static file serving
@@ -50,9 +51,14 @@ Crawl(ctx context.Context, source config.SourceConfig, sourceID int64) (int, <-c
 // int = total URL count (0 if unknown); channel closed when done
 ```
 
+### HTTP client hardening (SSRF)
+- `internal/httpsafe` centralizes DNS resolution + IP allow-list + redirect re-validation for every source adapter
+- All adapter HTTP clients MUST set `CheckRedirect: httpsafe.CheckRedirect` so a 302 cannot redirect to a private IP
+- `httpsafe.AllowedHost(ctx, *url.URL)` resolves the hostname and fails closed if any resolved IP is private, CGNAT, loopback, link-local, or cloud metadata (IPv4 169.254.169.254, IPv6 `fd00:ec2::254`)
+- Never use `httptest.NewServer` in adapter tests — it binds to loopback which the SSRF check blocks. Use stub adapters and override `httpsafe.LookupHostIPs` when a test needs a specific resolution
+
 ### Web Adapter
-- SSRF protection: `isAllowedHost()` blocks loopback/private IPs — never use `httptest.NewServer` in tests; use stub adapters instead
-- `filterURL(u, base, filterPath)` helper encapsulates origin + path-prefix + SSRF checks
+- `filterURL(ctx, u, base, filterPath)` helper encapsulates origin + path-prefix + SSRF checks
 - `include_path` field: if set, overrides `base.Path` as the URL prefix filter; must share same origin
 - Sitemap discovery: tries `<src>/sitemap.xml` then `<origin>/sitemap.xml`
 - Polite crawling: 500ms delay between pages, User-Agent header, 429/Retry-After backoff
@@ -79,16 +85,19 @@ Crawl(ctx context.Context, source config.SourceConfig, sourceID int64) (int, <-c
 
 ## Architecture
 - **Storage:** SQLite with FTS5 + sqlite-vec; `all-MiniLM-L6-v2` ONNX model bundled in image
-- **Auth:** Device code flows only — no app registrations needed
-  - Microsoft: Azure CLI client ID `04b07795-8ddb-461a-bbee-02f9e1bf7b46`
-  - GitHub: standard device flow
+- **Auth:**
+  - Microsoft (Azure DevOps): device code flow using Azure CLI client ID `04b07795-8ddb-461a-bbee-02f9e1bf7b46`
+  - GitHub (wiki + repo): user-supplied fine-grained PAT via `PUT /api/sources/{id}/auth/token`; public repos work without a token
 - **Tokens:** AES-256-GCM encrypted in SQLite; key from `DOCUMCP_SECRET_KEY` env var
+- **API auth:** optional `DOCUMCP_API_KEY` bearer token on `/api/*` and `/mcp/*`; constant-time compared
+- **Bind address:** defaults to `127.0.0.1:<port>`; override with `DOCUMCP_BIND_ADDR`; the container image pre-sets `0.0.0.0:8080`
 - **MCP:** `github.com/modelcontextprotocol/go-sdk` v0.8.0, SSE transport at `/mcp/`
 - **Container:** multi-stage Dockerfile, non-root user `documcp` (uid 1001), podman-compatible
 
 ## Source Types
 | Type | Auth | Key fields |
 |---|---|---|
-| `web` | none / basic | `url`, `include_path` (optional path-prefix filter) |
-| `github_wiki` | GitHub device code | `repo` (owner/repo) |
+| `web` | none | `url`, `include_path` (optional path-prefix filter, same origin required) |
+| `github_wiki` | fine-grained PAT (optional for public wikis) | `repo` (owner/repo) |
+| `github_repo` | fine-grained PAT (optional for public repos) | `repo`, `branch`, `include_path` (subfolder) |
 | `azure_devops` | Microsoft device code | `url`, `base_url` |

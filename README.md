@@ -155,6 +155,24 @@ The MCP server is available at `http://localhost:8080/mcp/` using Server-Sent Ev
 }
 ```
 
+### Claude Code (`.mcp.json` in your project root)
+
+```json
+{
+  "mcpServers": {
+    "documcp": {
+      "type": "sse",
+      "url": "http://localhost:8080/mcp/",
+      "headers": {
+        "Authorization": "Bearer <your-api-key>"
+      }
+    }
+  }
+}
+```
+
+Omit the `headers` block when `DOCUMCP_API_KEY` is unset. Restart Claude Code so it picks up the config change; run `/mcp` to confirm the server is connected.
+
 ### Available MCP Tools
 
 | Tool | Description |
@@ -198,6 +216,31 @@ internal/
 web/static/           # embedded HTML/JS/CSS (Alpine.js, dark theme)
 models/               # ONNX model (downloaded at Docker build time)
 ```
+
+## Troubleshooting
+
+**`/api/*` or `/mcp/*` returns 401 `unauthorized`.**
+`DOCUMCP_API_KEY` is set — every request needs `Authorization: Bearer <key>`. Unset it for local-only use, or pass the header from your MCP client.
+
+**The UI loads but `/api/sources` returns 404 in docker-compose.**
+Check `docker compose logs documcp`. The binary inside the container binds to `0.0.0.0:8080` (the image sets `DOCUMCP_BIND_ADDR`); if you changed the port in `config.yaml`, also update the compose `ports:` mapping and — if running outside compose — set `DOCUMCP_BIND_ADDR=0.0.0.0:<new-port>`.
+
+**Stored GitHub / Azure DevOps tokens fail to decrypt after a restart.**
+`DOCUMCP_SECRET_KEY` either changed or was never set. A missing key means DocuMcp generates an ephemeral key per run. Re-auth the source in the UI and set a persistent key. Generate one with `openssl rand -hex 32`.
+
+**Semantic search returns no results but keyword search works.**
+The ONNX embedding model failed to load. Check startup logs for `embedding model not loaded` — usually `DOCUMCP_MODEL_PATH` points to a missing directory. The container image includes the model at `/app/models/all-MiniLM-L6-v2`; for a bare-binary install, export the model yourself with [optimum-cli](https://huggingface.co/docs/optimum/exporters/onnx/usage_guides/export_a_model).
+
+**A source shows 0 pages after a crawl.**
+Check the server logs. Common causes: GitHub PAT missing **Contents: Read-only** on the target repo (manifests as `unauthorized — token missing or lacks repo scope`); `include_path` with a typo so no file matches; the web source's sitemap is outside the `include_path` prefix. Trigger **Crawl Now** in the UI and watch the progress badge — it shows `N / Total pages` during a run.
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the development loop, code style, and what I'm likely to accept or push back on.
+
+## Security
+
+To report a vulnerability, see [SECURITY.md](SECURITY.md).
 
 ## License
 
