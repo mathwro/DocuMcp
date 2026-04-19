@@ -35,7 +35,7 @@ type Source struct {
 	Branch        string
 	BaseURL       string
 	SpaceKey      string
-	Auth          string
+	Auth          string `json:"-"`
 	CrawlSchedule string
 	LastCrawled   *time.Time
 	PageCount     int

@@ -17,7 +17,12 @@ import (
 	"github.com/mathwro/DocuMcp/internal/adapter"
 	"github.com/mathwro/DocuMcp/internal/config"
 	"github.com/mathwro/DocuMcp/internal/db"
+	"github.com/mathwro/DocuMcp/internal/httpsafe"
 )
+
+// tarballClient is used for all tarball fetches; its CheckRedirect hook
+// re-validates every redirect hop to prevent SSRF via a 302 to a private IP.
+var tarballClient = &http.Client{CheckRedirect: httpsafe.CheckRedirect}
 
 const maxFileSize = 5 * 1024 * 1024 // 5 MiB per file
 
@@ -148,7 +153,7 @@ func (a *Adapter) fetchTarball(ctx context.Context, src config.SourceConfig, bra
 			req.Header.Set("Authorization", "Bearer "+src.Token)
 		}
 
-		resp, err = http.DefaultClient.Do(req)
+		resp, err = tarballClient.Do(req)
 		if err != nil {
 			return nil, fmt.Errorf("github_repo: fetch tarball: %w", err)
 		}

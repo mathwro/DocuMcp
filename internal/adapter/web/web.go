@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"net"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -14,6 +13,7 @@ import (
 	"github.com/mathwro/DocuMcp/internal/adapter"
 	"github.com/mathwro/DocuMcp/internal/config"
 	"github.com/mathwro/DocuMcp/internal/db"
+	"github.com/mathwro/DocuMcp/internal/httpsafe"
 )
 
 func init() {
@@ -21,9 +21,12 @@ func init() {
 }
 
 // crawlClient is the HTTP client used for all web crawl requests.
-// It has an explicit timeout to prevent hanging connections.
+// It has an explicit timeout and re-validates every redirect target
+// through httpsafe.CheckRedirect — without this, a public URL could
+// 302 the crawler at cloud-metadata or RFC1918 addresses.
 var crawlClient = &http.Client{
-	Timeout: 30 * time.Second,
+	Timeout:       30 * time.Second,
+	CheckRedirect: httpsafe.CheckRedirect,
 }
 
 // WebAdapter crawls generic web documentation sites.
@@ -42,7 +45,7 @@ func (a *WebAdapter) Crawl(ctx context.Context, src config.SourceConfig, sourceI
 	if err != nil {
 		return 0, nil, fmt.Errorf("web adapter: parse source URL: %w", err)
 	}
-	if !isAllowedHost(base) {
+	if !isAllowedHost(ctx, base) {
 		return 0, nil, fmt.Errorf("web adapter: source URL %q resolves to a blocked host", src.URL)
 	}
 
@@ -74,8 +77,8 @@ func (a *WebAdapter) Crawl(ctx context.Context, src config.SourceConfig, sourceI
 			slog.Warn("web: skipping cross-origin sitemap URL", "url", u, "base", src.URL)
 			continue
 		}
-		if !filterURL(parsed, base, filterPath) {
-			if !isAllowedHost(parsed) {
+		if !filterURL(ctx, parsed, base, filterPath) {
+			if !isAllowedHost(ctx, parsed) {
 				slog.Warn("web: skipping blocked host in sitemap URL", "url", u)
 			}
 			continue
@@ -235,65 +238,20 @@ func sameOrigin(u, base *url.URL) bool {
 // filterURL returns true if u should be included in a crawl whose filter
 // path is filterPath and base origin is base. It checks origin, path prefix,
 // and SSRF safety.
-func filterURL(u *url.URL, base *url.URL, filterPath string) bool {
+func filterURL(ctx context.Context, u *url.URL, base *url.URL, filterPath string) bool {
 	if !sameOrigin(u, base) {
 		return false
 	}
 	if !strings.HasPrefix(u.Path, filterPath) && u.Path != strings.TrimRight(filterPath, "/") {
 		return false
 	}
-	if !isAllowedHost(u) {
+	if !isAllowedHost(ctx, u) {
 		return false
 	}
 	return true
 }
 
-// isAllowedHost returns false if the URL's host is a loopback, link-local,
-// or RFC-1918 private address — blocking SSRF via the crawler.
-func isAllowedHost(u *url.URL) bool {
-	host := u.Hostname()
-	if host == "" {
-		return false
-	}
-	// Block well-known internal hostnames.
-	lower := strings.ToLower(host)
-	if lower == "localhost" || strings.HasSuffix(lower, ".local") || strings.HasSuffix(lower, ".internal") {
-		return false
-	}
-	ip := net.ParseIP(host)
-	if ip == nil {
-		// Hostname — allow (full DNS resolution not feasible here).
-		return true
-	}
-	if ip.IsLoopback() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() {
-		return false
-	}
-	for _, cidr := range privateRanges {
-		if cidr.Contains(ip) {
-			return false
-		}
-	}
-	return true
+// isAllowedHost delegates to httpsafe.AllowedHost.
+func isAllowedHost(ctx context.Context, u *url.URL) bool {
+	return httpsafe.AllowedHost(ctx, u)
 }
-
-// privateRanges lists CIDR blocks that must not be reachable via the crawler.
-var privateRanges = func() []*net.IPNet {
-	cidrs := []string{
-		"10.0.0.0/8",
-		"172.16.0.0/12",
-		"192.168.0.0/16",
-		"100.64.0.0/10",  // Carrier-grade NAT (RFC 6598)
-		"169.254.0.0/16", // IPv4 link-local
-		"::1/128",        // IPv6 loopback
-		"fc00::/7",       // IPv6 unique local
-		"fe80::/10",      // IPv6 link-local
-	}
-	ranges := make([]*net.IPNet, 0, len(cidrs))
-	for _, cidr := range cidrs {
-		_, network, err := net.ParseCIDR(cidr)
-		if err == nil {
-			ranges = append(ranges, network)
-		}
-	}
-	return ranges
-}()

@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"crypto/subtle"
 	"encoding/json"
 	"log/slog"
 	"net"
@@ -97,8 +98,8 @@ func apiKeyMiddleware(apiKey string, next http.Handler) http.Handler {
 		if apiKey != "" {
 			path := r.URL.Path
 			if strings.HasPrefix(path, "/api/") || strings.HasPrefix(path, "/mcp/") {
-				got := r.Header.Get("Authorization")
-				if got != "Bearer "+apiKey {
+				got := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+				if subtle.ConstantTimeCompare([]byte(got), []byte(apiKey)) != 1 {
 					w.Header().Set("Content-Type", "application/json")
 					w.WriteHeader(http.StatusUnauthorized)
 					json.NewEncoder(w).Encode(map[string]string{"error": "unauthorized"}) //nolint:errcheck

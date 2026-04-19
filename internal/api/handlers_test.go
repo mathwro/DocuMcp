@@ -110,6 +110,55 @@ func TestCreateSource(t *testing.T) {
 	}
 }
 
+func TestCreateSource_RejectsDangerousSchemes(t *testing.T) {
+	cases := []struct {
+		name string
+		src  db.Source
+	}{
+		{"file scheme", db.Source{Name: "f", Type: "web", URL: "file:///etc/passwd"}},
+		{"javascript scheme", db.Source{Name: "j", Type: "web", URL: "javascript:alert(1)"}},
+		{"gopher scheme", db.Source{Name: "g", Type: "web", URL: "gopher://evil.example.com/"}},
+		{"ftp scheme", db.Source{Name: "f", Type: "web", URL: "ftp://files.example.com/"}},
+		{"http empty host", db.Source{Name: "e", Type: "web", URL: "http:///path"}},
+		{"bare string", db.Source{Name: "b", Type: "web", URL: "not-a-url"}},
+		{"azure devops bad base_url", db.Source{Name: "a", Type: "azure_devops", URL: "https://dev.azure.com/org", BaseURL: "javascript:alert(1)"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			store := openTestStore(t)
+			srv := api.NewServer(store, nil, nil, make([]byte, 32))
+			body, err := json.Marshal(tc.src)
+			if err != nil {
+				t.Fatalf("marshal: %v", err)
+			}
+			r := httptest.NewRequest(http.MethodPost, "/api/sources", bytes.NewReader(body))
+			r.Header.Set("Content-Type", "application/json")
+			w := httptest.NewRecorder()
+			srv.ServeHTTP(w, r)
+			if w.Code != http.StatusBadRequest {
+				t.Errorf("expected 400, got %d: %s", w.Code, w.Body.String())
+			}
+		})
+	}
+}
+
+func TestCreateSource_AllowsEmptyURLForGitHubTypes(t *testing.T) {
+	// github_wiki and github_repo use the `repo` field, not URL.
+	for _, srcType := range []string{"github_wiki", "github_repo"} {
+		t.Run(srcType, func(t *testing.T) {
+			store := openTestStore(t)
+			srv := api.NewServer(store, nil, nil, make([]byte, 32))
+			body, _ := json.Marshal(db.Source{Name: "g", Type: srcType, Repo: "owner/repo"})
+			r := httptest.NewRequest(http.MethodPost, "/api/sources", bytes.NewReader(body))
+			w := httptest.NewRecorder()
+			srv.ServeHTTP(w, r)
+			if w.Code != http.StatusCreated {
+				t.Errorf("expected 201, got %d: %s", w.Code, w.Body.String())
+			}
+		})
+	}
+}
+
 func TestCreateSource_BadBody(t *testing.T) {
 	store := openTestStore(t)
 	srv := api.NewServer(store, nil, nil, make([]byte, 32))
