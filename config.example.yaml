@@ -1,0 +1,32 @@
+server:
+  port: 8080
+  data_dir: /app/data
+
+sources:
+  # Web crawl, restricted to a path prefix:
+  # - name: ArgoCD Operator Manual
+  #   type: web
+  #   url: https://argo-cd.readthedocs.io/en/stable/
+  #   include_path: https://argo-cd.readthedocs.io/en/stable/operator-manual/
+  #   crawl_schedule: "@weekly"
+
+  # GitHub wiki (public or with a fine-grained PAT for private):
+  # - name: My Project Wiki
+  #   type: github_wiki
+  #   repo: owner/repo
+  #   crawl_schedule: "@daily"
+
+  # GitHub repo tree (Markdown + .txt), optionally scoped to a subfolder:
+  # - name: My Project Docs
+  #   type: github_repo
+  #   repo: owner/repo
+  #   branch: main
+  #   include_path: docs/
+  #   crawl_schedule: "@daily"
+
+  # Azure DevOps wiki (Microsoft device code flow):
+  # - name: Team Wiki
+  #   type: azure_devops
+  #   url: https://dev.azure.com/org/project
+  #   base_url: https://dev.azure.com/org/project/_apis/wiki/wikis/wiki-name
+  #   crawl_schedule: "@weekly"

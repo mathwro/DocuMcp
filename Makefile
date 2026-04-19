@@ -33,6 +33,6 @@ init:
 	@if [ -f config.yaml ]; then \
 		echo "config.yaml already exists, skipping"; \
 	else \
-		printf 'server:\n  port: 8080\n  data_dir: /app/data\n\nsources:\n  # - name: Example Docs\n  #   type: web\n  #   url: https://docs.example.com/\n  #   crawl_schedule: "@weekly"\n' > config.yaml; \
-		echo "Created config.yaml with defaults"; \
+		cp config.example.yaml config.yaml; \
+		echo "Created config.yaml from config.example.yaml"; \
 	fi

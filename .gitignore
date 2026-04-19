@@ -1,4 +1,16 @@
 bin/
 *.db
 .env
+config.yaml
+coverage.out
+coverage.html
+*.prof
+
+# IDE / editor
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
 docs/superpowers/

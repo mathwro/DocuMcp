@@ -1,9 +1,0 @@
-server:
-  port: 8080
-  data_dir: /app/data
-
-sources:
-  - name: Harbor Docs
-    type: web
-    url: https://goharbor.io/docs/2.14.0/
-    crawl_schedule: "@weekly"
