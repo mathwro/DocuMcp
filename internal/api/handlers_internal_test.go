@@ -8,18 +8,14 @@ import (
 
 	"github.com/mathwro/DocuMcp/internal/crawler"
 	"github.com/mathwro/DocuMcp/internal/db"
+	"github.com/mathwro/DocuMcp/internal/testutil"
 )
 
 // TestTriggerCrawl_Returns409WhenAlreadyCrawling verifies that a second crawl
 // request for a source already marked in-flight returns 409 Conflict instead
 // of silently spawning a second goroutine.
 func TestTriggerCrawl_Returns409WhenAlreadyCrawling(t *testing.T) {
-	tmpDir := t.TempDir()
-	store, err := db.Open(tmpDir + "/test.db")
-	if err != nil {
-		t.Fatalf("open db: %v", err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
+	store := testutil.OpenStoreFile(t)
 
 	id, err := store.InsertSource(db.Source{Name: "CrawlMe", Type: "web", URL: "https://example.com"})
 	if err != nil {

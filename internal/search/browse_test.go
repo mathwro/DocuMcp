@@ -6,15 +6,12 @@ import (
 
 	"github.com/mathwro/DocuMcp/internal/db"
 	"github.com/mathwro/DocuMcp/internal/search"
+	"github.com/mathwro/DocuMcp/internal/testutil"
 )
 
 func setupBrowseDB(t *testing.T) (*db.Store, int64) {
 	t.Helper()
-	store, err := db.Open(":memory:")
-	if err != nil {
-		t.Fatalf("Open: %v", err)
-	}
-	t.Cleanup(func() { store.Close() })
+	store := testutil.OpenStore(t)
 
 	srcID, err := store.InsertSource(db.Source{Name: "S", Type: "web"})
 	if err != nil {

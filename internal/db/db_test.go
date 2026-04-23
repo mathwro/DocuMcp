@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/mathwro/DocuMcp/internal/db"
+	"github.com/mathwro/DocuMcp/internal/testutil"
 )
 
 func TestSource_MarshalJSON_OmitsAuthToken(t *testing.T) {
@@ -25,19 +26,11 @@ func TestSource_MarshalJSON_OmitsAuthToken(t *testing.T) {
 }
 
 func TestOpen_CreatesSchema(t *testing.T) {
-	store, err := db.Open(":memory:")
-	if err != nil {
-		t.Fatalf("Open: %v", err)
-	}
-	defer store.Close()
+	_ = testutil.OpenStore(t)
 }
 
 func TestInsertAndListSources(t *testing.T) {
-	store, err := db.Open(":memory:")
-	if err != nil {
-		t.Fatalf("Open: %v", err)
-	}
-	defer store.Close()
+	store := testutil.OpenStore(t)
 
 	id, err := store.InsertSource(db.Source{
 		Name: "Test Source",
@@ -67,11 +60,7 @@ func TestInsertAndListSources(t *testing.T) {
 }
 
 func TestUpsertAndGetPage(t *testing.T) {
-	store, err := db.Open(":memory:")
-	if err != nil {
-		t.Fatalf("Open: %v", err)
-	}
-	defer store.Close()
+	store := testutil.OpenStore(t)
 
 	sourceID, err := store.InsertSource(db.Source{Name: "S", Type: "web"})
 	if err != nil {
@@ -102,11 +91,7 @@ func TestUpsertAndGetPage(t *testing.T) {
 }
 
 func TestUpsertPage_UpdatesOnConflict(t *testing.T) {
-	store, err := db.Open(":memory:")
-	if err != nil {
-		t.Fatalf("Open: %v", err)
-	}
-	defer store.Close()
+	store := testutil.OpenStore(t)
 
 	srcID, err := store.InsertSource(db.Source{Name: "S", Type: "web"})
 	if err != nil {
@@ -129,11 +114,7 @@ func TestUpsertPage_UpdatesOnConflict(t *testing.T) {
 }
 
 func TestDeleteSource(t *testing.T) {
-	store, err := db.Open(":memory:")
-	if err != nil {
-		t.Fatalf("Open: %v", err)
-	}
-	defer store.Close()
+	store := testutil.OpenStore(t)
 
 	id, err := store.InsertSource(db.Source{Name: "S", Type: "web"})
 	if err != nil {
@@ -152,11 +133,7 @@ func TestDeleteSource(t *testing.T) {
 }
 
 func TestUpdateSourcePageCount(t *testing.T) {
-	store, err := db.Open(":memory:")
-	if err != nil {
-		t.Fatalf("Open: %v", err)
-	}
-	defer store.Close()
+	store := testutil.OpenStore(t)
 
 	id, err := store.InsertSource(db.Source{Name: "S", Type: "web"})
 	if err != nil {
@@ -175,11 +152,7 @@ func TestUpdateSourcePageCount(t *testing.T) {
 }
 
 func TestGetSource(t *testing.T) {
-	store, err := db.Open(":memory:")
-	if err != nil {
-		t.Fatalf("Open: %v", err)
-	}
-	defer store.Close()
+	store := testutil.OpenStore(t)
 
 	id, err := store.InsertSource(db.Source{Name: "Test", Type: "web", URL: "https://example.com"})
 	if err != nil {
@@ -196,11 +169,7 @@ func TestGetSource(t *testing.T) {
 }
 
 func TestGetSourceIDByName(t *testing.T) {
-	store, err := db.Open(":memory:")
-	if err != nil {
-		t.Fatalf("Open: %v", err)
-	}
-	defer store.Close()
+	store := testutil.OpenStore(t)
 
 	id, err := store.InsertSource(db.Source{Name: "Named Source", Type: "web"})
 	if err != nil {
@@ -217,11 +186,7 @@ func TestGetSourceIDByName(t *testing.T) {
 }
 
 func TestUpsertAndGetToken(t *testing.T) {
-	store, err := db.Open(":memory:")
-	if err != nil {
-		t.Fatalf("Open: %v", err)
-	}
-	defer store.Close()
+	store := testutil.OpenStore(t)
 
 	srcID, err := store.InsertSource(db.Source{Name: "S", Type: "web"})
 	if err != nil {
@@ -244,11 +209,7 @@ func TestUpsertAndGetToken(t *testing.T) {
 }
 
 func TestUpsertEmbedding(t *testing.T) {
-	store, err := db.Open(":memory:")
-	if err != nil {
-		t.Fatalf("Open: %v", err)
-	}
-	defer store.Close()
+	store := testutil.OpenStore(t)
 
 	srcID, err := store.InsertSource(db.Source{Name: "S", Type: "web"})
 	if err != nil {
@@ -285,13 +246,9 @@ func TestUpsertEmbedding(t *testing.T) {
 }
 
 func TestGetPageByURL_NotFound(t *testing.T) {
-	store, err := db.Open(":memory:")
-	if err != nil {
-		t.Fatalf("Open: %v", err)
-	}
-	defer store.Close()
+	store := testutil.OpenStore(t)
 
-	_, err = store.GetPageByURL("https://nonexistent.example.com")
+	_, err := store.GetPageByURL("https://nonexistent.example.com")
 	if err == nil {
 		t.Fatal("expected error for nonexistent URL, got nil")
 	}
@@ -301,11 +258,7 @@ func TestGetPageByURL_NotFound(t *testing.T) {
 }
 
 func TestInsertSource_github_repo_persists_branch(t *testing.T) {
-	store, err := db.Open(":memory:")
-	if err != nil {
-		t.Fatalf("Open: %v", err)
-	}
-	defer store.Close()
+	store := testutil.OpenStore(t)
 
 	id, err := store.InsertSource(db.Source{
 		Name:        "example",
