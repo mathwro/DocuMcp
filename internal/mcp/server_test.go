@@ -3,7 +3,6 @@ package mcp_test
 import (
 	"context"
 	"encoding/json"
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -11,18 +10,13 @@ import (
 
 	"github.com/mathwro/DocuMcp/internal/db"
 	mcpserver "github.com/mathwro/DocuMcp/internal/mcp"
+	"github.com/mathwro/DocuMcp/internal/testutil"
 )
 
 // openTestDB creates a temporary SQLite database for testing.
 func openTestDB(t *testing.T) *db.Store {
 	t.Helper()
-	dir := t.TempDir()
-	store, err := db.Open(filepath.Join(dir, "test.db"))
-	if err != nil {
-		t.Fatalf("open test db: %v", err)
-	}
-	t.Cleanup(func() { store.Close() })
-	return store
+	return testutil.OpenStoreFile(t)
 }
 
 // connectTestClient connects an in-memory MCP client to the given server and

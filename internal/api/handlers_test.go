@@ -11,16 +11,12 @@ import (
 	"github.com/mathwro/DocuMcp/internal/api"
 	"github.com/mathwro/DocuMcp/internal/auth"
 	"github.com/mathwro/DocuMcp/internal/db"
+	"github.com/mathwro/DocuMcp/internal/testutil"
 )
 
 func openTestStore(t *testing.T) *db.Store {
 	t.Helper()
-	store, err := db.Open(":memory:")
-	if err != nil {
-		t.Fatalf("db.Open: %v", err)
-	}
-	t.Cleanup(func() { store.Close() })
-	return store
+	return testutil.OpenStore(t)
 }
 
 func TestListSources_Empty(t *testing.T) {

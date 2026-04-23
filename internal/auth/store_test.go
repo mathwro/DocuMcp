@@ -6,14 +6,11 @@ import (
 
 	"github.com/mathwro/DocuMcp/internal/auth"
 	"github.com/mathwro/DocuMcp/internal/db"
+	"github.com/mathwro/DocuMcp/internal/testutil"
 )
 
 func TestTokenStore_SaveAndLoad(t *testing.T) {
-	dbStore, err := db.Open(":memory:")
-	if err != nil {
-		t.Fatalf("Open: %v", err)
-	}
-	defer dbStore.Close()
+	dbStore := testutil.OpenStore(t)
 
 	// Insert a source row so the foreign key constraint on tokens is satisfied.
 	srcID, err := dbStore.InsertSource(db.Source{
@@ -50,16 +47,12 @@ func TestTokenStore_SaveAndLoad(t *testing.T) {
 }
 
 func TestTokenStore_LoadNotFound(t *testing.T) {
-	dbStore, err := db.Open(":memory:")
-	if err != nil {
-		t.Fatalf("Open: %v", err)
-	}
-	defer dbStore.Close()
+	dbStore := testutil.OpenStore(t)
 
 	key := []byte("test-encryption-key-32-bytes!!!!")
 	ts := auth.NewTokenStore(dbStore, key)
 
-	_, err = ts.Load(99, "microsoft")
+	_, err := ts.Load(99, "microsoft")
 	if err == nil {
 		t.Fatal("expected error for missing token, got nil")
 	}

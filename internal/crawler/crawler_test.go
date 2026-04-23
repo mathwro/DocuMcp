@@ -8,6 +8,7 @@ import (
 	"github.com/mathwro/DocuMcp/internal/config"
 	"github.com/mathwro/DocuMcp/internal/crawler"
 	"github.com/mathwro/DocuMcp/internal/db"
+	"github.com/mathwro/DocuMcp/internal/testutil"
 )
 
 // stubAdapter is a test-only adapter that returns a fixed set of pages without
@@ -27,11 +28,7 @@ func init() {
 }
 
 func TestCrawler_IndexesPages(t *testing.T) {
-	store, err := db.Open(":memory:")
-	if err != nil {
-		t.Fatalf("Open: %v", err)
-	}
-	defer store.Close()
+	store := testutil.OpenStore(t)
 
 	srcID, err := store.InsertSource(db.Source{Name: "Test", Type: "stub", URL: "http://example.test"})
 	if err != nil {
@@ -57,14 +54,10 @@ func TestCrawler_IndexesPages(t *testing.T) {
 }
 
 func TestCrawler_UnknownType(t *testing.T) {
-	store, err := db.Open(":memory:")
-	if err != nil {
-		t.Fatalf("Open: %v", err)
-	}
-	defer store.Close()
+	store := testutil.OpenStore(t)
 
 	c := crawler.New(store, nil)
-	err = c.Crawl(context.Background(), db.Source{ID: 1, Type: "unknown_source_type"})
+	err := c.Crawl(context.Background(), db.Source{ID: 1, Type: "unknown_source_type"})
 	if err == nil {
 		t.Fatal("expected error for unknown source type, got nil")
 	}
