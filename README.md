@@ -12,51 +12,65 @@ A self-hosted MCP (Model Context Protocol) server that indexes your documentatio
 - **MCP tools** — `search_docs`, `list_sources`, `browse_source`, `get_page`
 - **Zero external dependencies** — SQLite with FTS5 + sqlite-vec, ONNX model bundled in the container image
 
-## Quick Start
+## Quick Start — pre-built image
 
-### 1. Get the container image
+No clone required. Works with `docker` or `podman` (substitute the command as needed).
 
-**Pull from GitHub Container Registry:**
-
-```bash
-docker pull ghcr.io/mathwro/documcp:latest
-```
-
-**Or build locally:**
+### 1. Create a working directory with a config file
 
 ```bash
-make docker
-# or: podman build -t documcp:local .
+mkdir documcp && cd documcp
+
+cat > config.yaml <<'EOF'
+server:
+  port: 8080
+  data_dir: /app/data
+sources: []
+EOF
 ```
 
-> The build downloads the `all-MiniLM-L6-v2` ONNX model (~90 MB) from HuggingFace. Requires Python/pip for `optimum-cli` in the builder stage.
+`config.yaml` is the source of truth for sources and schedules. You can edit it directly or manage sources from the Web UI — the file watcher picks up changes without a restart.
 
-### 2. Generate config and secret key
+### 2. Generate a persistent secret key
 
 ```bash
-make init
+echo "DOCUMCP_SECRET_KEY=$(openssl rand -hex 32)" > .env
 ```
 
-This creates a `config.yaml` with defaults and a `.env` file with a generated secret key. Edit `config.yaml` to add your sources:
+This key encrypts GitHub PATs and Azure DevOps tokens in SQLite. Keep the `.env` file — regenerating the key invalidates any stored tokens.
 
-```yaml
-sources:
-  - name: My Docs
-    type: web
-    url: https://docs.example.com/
-    crawl_schedule: "@weekly"
-```
-
-> `make init` skips files that already exist, so it is safe to re-run.
-
-### 3. Start the server
+### 3. Run the container
 
 ```bash
-docker compose up -d
-# or: podman compose up -d
+docker run -d \
+  --name documcp \
+  -p 8080:8080 \
+  -v "$PWD/config.yaml:/app/config.yaml" \
+  -v documcp-data:/app/data \
+  --env-file .env \
+  ghcr.io/mathwro/documcp:latest
 ```
 
 Open `http://localhost:8080` to manage sources and search.
+
+> **Updating:** `docker pull ghcr.io/mathwro/documcp:latest && docker rm -f documcp` then re-run step 3. The named `documcp-data` volume preserves your indexed content and tokens across upgrades.
+>
+> **Pinning a version:** replace `:latest` with `:0.1.0` (or `:0`, `:0.1`) to pin to a specific release. Image tags track published GitHub releases.
+
+## Quick Start — from source
+
+Clone the repo if you want to modify the code or use the Makefile / compose shortcuts.
+
+```bash
+git clone https://github.com/mathwro/DocuMcp.git
+cd DocuMcp
+
+make init            # generates config.yaml and .env
+make docker          # builds documcp:local (downloads the ONNX model)
+docker compose up -d # or: podman compose up -d
+```
+
+> `make init` skips files that already exist, so it is safe to re-run. The build downloads the `all-MiniLM-L6-v2` ONNX model (~90 MB) from HuggingFace via `optimum-cli` in the builder stage.
 
 ## Configuration
 
