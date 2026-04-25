@@ -4,14 +4,16 @@ services:
     ports:
       - "8080:8080"
     volumes:
-      - ./config.yaml:/app/config.yaml
       - documcp_data:/app/data
+      # Uncomment to seed sources declaratively from a config file:
+      # - ./config.yaml:/app/config.yaml
       # Uncomment to skip device code flows by mounting existing CLI credentials:
       # - ~/.azure:/home/documcp/.azure:ro
       # - ~/.config/gh:/home/documcp/.config/gh:ro
     restart: unless-stopped
     environment:
-      - DOCUMCP_CONFIG=/app/config.yaml
+      # Uncomment if mounting a config file at a non-default path:
+      # - DOCUMCP_CONFIG=/app/config.yaml
       - DOCUMCP_MODEL_PATH=/app/models/all-MiniLM-L6-v2
       # REQUIRED for persistent encrypted token storage across restarts.
       # Generate with: openssl rand -hex 32 and set in .env file.
