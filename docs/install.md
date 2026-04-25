@@ -9,48 +9,64 @@ Two install paths are supported. Pick one.
 
 ## Quick Start — pre-built image
 
-Works with `docker` or `podman` (substitute the command as needed).
-
-### 1. Create a working directory with a config file
-
-```bash
-mkdir documcp && cd documcp
-
-cat > config.yaml <<'EOF'
-server:
-  port: 8080
-  data_dir: /app/data
-sources: []
-EOF
-```
-
-`config.yaml` is the source of truth for sources and schedules. You can edit it directly or manage sources from the Web UI — the file watcher picks up changes without a restart.
-
-### 2. Generate a persistent secret key
-
-```bash
-echo "DOCUMCP_SECRET_KEY=$(openssl rand -hex 32)" > .env
-```
-
-This key encrypts GitHub PATs and Azure DevOps tokens in SQLite. Keep the `.env` file — regenerating the key invalidates any stored tokens. You only need this if you plan to add authenticated sources (private GitHub repos/wikis or Azure DevOps); for purely public sources it can be omitted.
-
-### 3. Run the container
+Works with `docker` or `podman` (substitute the command as needed). No config file required — the container falls back to built-in defaults (`port: 8080`, `data_dir: /app/data`, no sources) and you add sources from the Web UI.
 
 ```bash
 docker run -d \
   --name documcp \
   -p 8080:8080 \
-  -v "$PWD/config.yaml:/app/config.yaml" \
+  -v documcp-data:/app/data \
+  ghcr.io/mathwro/documcp:latest
+```
+
+Open `http://localhost:8080`. The named `documcp-data` volume preserves indexed content and stored tokens across upgrades.
+
+> **Updating:** `docker pull ghcr.io/mathwro/documcp:latest && docker rm -f documcp` then re-run the command above.
+>
+> **Pinning a version:** replace `:latest` with `:0.1.0` (or `:0`, `:0.1`) to pin to a specific release. Image tags track published GitHub releases.
+
+### Adding a persistent secret key
+
+You only need this if you plan to add **authenticated sources** (private GitHub repos/wikis or Azure DevOps). The key encrypts those tokens in SQLite; without it, a random key is generated each run and stored tokens are lost on restart.
+
+```bash
+echo "DOCUMCP_SECRET_KEY=$(openssl rand -hex 32)" > .env
+
+docker rm -f documcp
+docker run -d \
+  --name documcp \
+  -p 8080:8080 \
   -v documcp-data:/app/data \
   --env-file .env \
   ghcr.io/mathwro/documcp:latest
 ```
 
-Open `http://localhost:8080` to manage sources and search.
+### Using a config file (optional)
 
-> **Updating:** `docker pull ghcr.io/mathwro/documcp:latest && docker rm -f documcp` then re-run step 3. The named `documcp-data` volume preserves your indexed content and tokens across upgrades.
->
-> **Pinning a version:** replace `:latest` with `:0.1.0` (or `:0`, `:0.1`) to pin to a specific release. Image tags track published GitHub releases.
+Provide a `config.yaml` if you want to declare sources and crawl schedules in one file (handy for git-tracked deployments). Bind-mount it at `/app/config.yaml`:
+
+```bash
+cat > config.yaml <<'EOF'
+server:
+  port: 8080
+  data_dir: /app/data
+sources:
+  - name: My Docs
+    type: web
+    url: https://example.com/docs/
+    crawl_schedule: "@weekly"
+EOF
+
+docker rm -f documcp
+docker run -d \
+  --name documcp \
+  -p 8080:8080 \
+  -v "$PWD/config.yaml:/app/config.yaml" \
+  -v documcp-data:/app/data \
+  ghcr.io/mathwro/documcp:latest
+```
+
+The file watcher reloads source definitions on save, no restart needed. UI-managed sources continue to live in the database alongside any declared in YAML.
 
 ## Quick Start — from source
 
