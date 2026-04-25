@@ -49,7 +49,8 @@ EXPOSE 8080
 ENV DOCUMCP_BIND_ADDR=0.0.0.0:8080
 
 # /app/data  — SQLite database and encrypted token store
-# /app/config.yaml — source-of-truth config (mount from host)
-VOLUME ["/app/data", "/app/config.yaml"]
+# Bind-mount /app/config.yaml from the host if you want declarative source
+# seeding; otherwise the binary uses built-in defaults.
+VOLUME ["/app/data"]
 
 CMD ["documcp"]
