@@ -1,7 +1,9 @@
 package config
 
 import (
+	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 
 	"gopkg.in/yaml.v3"
@@ -61,6 +63,26 @@ func applyDefaults(cfg *Config) {
 func Load(path string) (*Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
+		return nil, fmt.Errorf("reading config: %w", err)
+	}
+	var cfg Config
+	if err := yaml.Unmarshal(data, &cfg); err != nil {
+		return nil, fmt.Errorf("parsing config: %w", err)
+	}
+	applyDefaults(&cfg)
+	return &cfg, nil
+}
+
+// LoadOrDefault is like Load but returns built-in defaults when the file does
+// not exist. Other errors (parse failures, permission denied, etc.) still
+// propagate so misconfiguration is loud, not silent.
+func LoadOrDefault(path string) (*Config, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			slog.Info("no config file found, using built-in defaults", "path", path)
+			return defaults(), nil
+		}
 		return nil, fmt.Errorf("reading config: %w", err)
 	}
 	var cfg Config
