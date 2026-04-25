@@ -1,6 +1,10 @@
 # Configuration
 
-DocuMcp reads its configuration from a YAML file (default `config.yaml`) and a small set of environment variables. The YAML file is the source of truth for sources and schedules; environment variables handle secrets and runtime overrides.
+DocuMcp reads its configuration from an optional YAML file and a small set of environment variables. If no config file is present, the server starts with built-in defaults (`port: 8080`, `data_dir: /app/data`, no declarative sources) and all source management happens through the Web UI — those sources persist in the SQLite database under `data_dir`.
+
+Provide a `config.yaml` when you want to declare sources and crawl schedules in version control. The file watcher reloads it on save, so changes take effect without a restart. UI-added sources are stored in the database, not written back to YAML.
+
+`DOCUMCP_CONFIG` lets you override the path. When it is set, the file must exist (typos fail loudly); when it is unset, a missing file silently falls back to defaults.
 
 ## `config.yaml`
 
