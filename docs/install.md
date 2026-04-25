@@ -74,12 +74,12 @@ The file watcher reloads source definitions on save, no restart needed. UI-manag
 git clone https://github.com/mathwro/DocuMcp.git
 cd DocuMcp
 
-make init            # generates config.yaml and .env
+make init            # creates .env with a generated DOCUMCP_SECRET_KEY
 make docker          # builds documcp:local (downloads the ONNX model)
 docker compose up -d # or: podman compose up -d
 ```
 
-> `make init` skips files that already exist, so it is safe to re-run. The build downloads the `all-MiniLM-L6-v2` ONNX model (~90 MB) from HuggingFace via `optimum-cli` in the builder stage.
+> `make init` skips an existing `.env`, so it is safe to re-run. `config.yaml` is optional — copy `config.example.yaml` to `config.yaml` if you want declarative source seeding. The build downloads the `all-MiniLM-L6-v2` ONNX model (~90 MB) from HuggingFace via `optimum-cli` in the builder stage.
 
 ## When to set `DOCUMCP_API_KEY`
 
