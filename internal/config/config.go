@@ -49,11 +49,12 @@ func defaults() *Config {
 
 // applyDefaults applies built-in defaults to cfg for any zero-valued fields.
 func applyDefaults(cfg *Config) {
+	d := defaults()
 	if cfg.Server.Port == 0 {
-		cfg.Server.Port = 8080
+		cfg.Server.Port = d.Server.Port
 	}
 	if cfg.Server.DataDir == "" {
-		cfg.Server.DataDir = "/app/data"
+		cfg.Server.DataDir = d.Server.DataDir
 	}
 }
 
