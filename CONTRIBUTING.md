@@ -26,12 +26,15 @@ on first query.
 ### Run locally against your own config
 
 ```bash
-make init              # writes config.yaml and .env with a generated key
-$EDITOR config.yaml    # add a source or two
+make init                          # writes .env with a generated DOCUMCP_SECRET_KEY
+cp config.example.yaml config.yaml # optional — only if you want declarative source seeding
+$EDITOR config.yaml                # add a source or two
 DOCUMCP_CONFIG=./config.yaml \
 DOCUMCP_SECRET_KEY="$(grep DOCUMCP_SECRET_KEY .env | cut -d= -f2)" \
 go run -tags sqlite_fts5 ./cmd/documcp
 ```
+
+The `DOCUMCP_CONFIG` line is only needed if you created a `config.yaml` — without it, the binary uses built-in defaults and you add sources from the Web UI.
 
 The server binds to `127.0.0.1:8080` by default. Open
 <http://127.0.0.1:8080> to manage sources and drive searches.
