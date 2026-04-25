@@ -19,14 +19,18 @@ internal/db/        # SQLite schema, CRUD, FTS5, tokens
 internal/search/    # FTS5 search, semantic search, RRF, browse
 internal/embed/     # ONNX embedding model wrapper (hugot)
 internal/adapter/   # Adapter interface + web/github/githubrepo/azuredevops impls
-internal/auth/      # Microsoft device code flow, encrypted token store
+internal/auth/      # Token store (AES-256-GCM); GitHub PAT save/revoke + Azure DevOps device code flow
 internal/crawler/   # Crawl orchestrator + cron scheduler
 internal/mcp/       # MCP server + 4 tool handlers
 internal/api/       # REST API for Web UI
+internal/httpsafe/  # SSRF-safe HTTP client (loopback/private-IP blocking)
+internal/testutil/  # Shared test helpers
 web/static/         # Embedded HTML/JS/CSS (dark theme, Alpine.js)
-models/             # ONNX model (downloaded at Docker build time)
-docs/plans/         # Design doc + implementation plan
+docs/               # User-facing docs (install, configuration, sources, mcp-clients, troubleshooting, development)
+docs/plans/         # Per-feature design + implementation plans (one pair per major change)
 ```
+
+> The ONNX model lives at `/app/models/all-MiniLM-L6-v2` inside the container only — it is downloaded at image-build time and not in the repo.
 
 ## Key Patterns
 - **Error wrapping:** always `fmt.Errorf("context: %w", err)` — never return raw errors
@@ -47,25 +51,28 @@ docs/plans/         # Design doc + implementation plan
 - SQLite with FTS5 (keyword) + sqlite-vec (vector) for hybrid search
 - `all-MiniLM-L6-v2` ONNX model bundled in container image — zero user setup for semantic search
 - Container support: Makefile auto-detects podman vs docker (prefers podman)
+- Server binds to `127.0.0.1:<port>` by default — set `DOCUMCP_BIND_ADDR=0.0.0.0:<port>` to expose to LAN. Docker image overrides to `0.0.0.0:8080` so port mapping works
 - Auth: Azure DevOps uses Microsoft device code flow (Azure CLI client ID `04b07795-8ddb-461a-bbee-02f9e1bf7b46`); GitHub (wiki + repo) uses user-supplied fine-grained PATs via `PUT /api/sources/{id}/auth/token`
 - Public GitHub repos/wikis crawl without a token; PAT only required for private resources
 - `config.yaml` is **optional** — when missing, built-in defaults apply (`port: 8080`, `data_dir: /app/data`, no declarative sources). When present, the watcher reloads it without restart. Sources added via the Web UI persist in SQLite (`db.Source`), NOT written back to YAML — YAML is operator-managed declarative seeding only
 - `DOCUMCP_CONFIG` set → `config.Load` (strict, missing file is fatal). Unset → `config.LoadOrDefault` (lenient, missing file falls back to defaults)
-- Tokens stored AES-256-GCM encrypted in SQLite, never in config file
+- Tokens stored AES-256-GCM encrypted in SQLite; key from `DOCUMCP_SECRET_KEY` (hex or base64, 32 bytes). Unset → ephemeral key, tokens lost on restart
 - Crawl progress tracked server-side (`crawlingIDs map[int64]bool` in API server); `CrawlTotal` stored in DB at crawl start, `PageCount` reset to 0 and flushed every 10 pages
 - `include_path` field: on `web` sources restricts crawling to a URL prefix (validated same-origin); on `github_repo` sources restricts indexing to a subfolder (`..` segments rejected)
 - `github_repo` adapter streams `/repos/{owner}/{repo}/tarball/{branch}` via `archive/tar` + `compress/gzip`; indexes `.md`/`.mdx`/`.txt`; 5 MiB per-file cap; one 429 retry honoring `Retry-After`
 - Web adapter discovers URLs synchronously before goroutine so total count is known upfront
 - Alpine.js vendored at `web/static/alpinejs.min.js` (no CDN); CSP: `script-src 'self' 'unsafe-inline' 'unsafe-eval'`
 
-## Status
-All 27 original tasks complete. Post-launch improvements committed to `main`:
-- Security fixes (PR #4), code quality fixes (PR #5)
-- Polite web crawler: 500ms delay, User-Agent, 429/Retry-After handling
-- Sitemap discovery: tries `<src>/sitemap.xml` then `<origin>/sitemap.xml`
-- Live crawl progress UI: `N / Total pages` badge with 2s polling
-- Search UI: clickable result titles, HTML-stripped snippets, page title from `<title>` tag
-- `include_path` field for web sources (path-prefix filtering)
-- `github_repo` source adapter: tarball streaming, Markdown/txt indexing, branch + subfolder support
-- GitHub auth: replaced device code flow with user-supplied fine-grained PATs (`PUT /auth/token`) for both `github_wiki` and `github_repo`
-- UI: delete-source refresh fix; regression tests added for 403/5xx/branch URL-escape/token-revoke
+## Environment Variables
+| Var | Purpose |
+|---|---|
+| `DOCUMCP_CONFIG` | Path to config file. Set → strict (missing file is fatal). Unset → defaults to `/app/config.yaml`, lenient |
+| `DOCUMCP_SECRET_KEY` | 32-byte hex/base64 key for token encryption. Unset → ephemeral |
+| `DOCUMCP_API_KEY` | Bearer token for `/api/*` and `/mcp/*`. Unset → open (warns at startup) |
+| `DOCUMCP_BIND_ADDR` | Listen address. Unset → `127.0.0.1:<port>`. Container image sets `0.0.0.0:8080` |
+| `DOCUMCP_MODEL_PATH` | ONNX model directory. Default `/app/models/all-MiniLM-L6-v2` |
+
+Detailed reference: `docs/configuration.md`. CI runs `CGO_ENABLED=1 go test -race -tags sqlite_fts5 ./...` (see `.github/workflows/ci.yml`).
+
+## History
+The project shipped its initial 27-task plan and several follow-ups; see `git log` for the full changelog and `docs/plans/` for per-feature design + implementation pairs. This file documents the current contract, not the path that got us here.
