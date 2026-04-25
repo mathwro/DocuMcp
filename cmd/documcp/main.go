@@ -23,8 +23,18 @@ import (
 )
 
 func main() {
-	cfgPath := getenv("DOCUMCP_CONFIG", "/app/config.yaml")
-	cfg, err := config.Load(cfgPath)
+	// If DOCUMCP_CONFIG is set, the user explicitly chose a path — fail loudly if
+	// it cannot be read so typos are caught. If it is unset, fall back to defaults
+	// when /app/config.yaml is absent so a fresh container needs no bind mount.
+	cfgPath, explicit := os.LookupEnv("DOCUMCP_CONFIG")
+	if !explicit {
+		cfgPath = "/app/config.yaml"
+	}
+	loader := config.LoadOrDefault
+	if explicit {
+		loader = config.Load
+	}
+	cfg, err := loader(cfgPath)
 	if err != nil {
 		slog.Error("load config", "err", err)
 		os.Exit(1)
