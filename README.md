@@ -14,29 +14,19 @@ A self-hosted MCP (Model Context Protocol) server that indexes your documentatio
 
 ## Quick Start
 
-The fastest way to get running — single user, container on `localhost`, no API key needed.
+The fastest way to get running — single user, container on `localhost`, no config file or API key needed.
 
 ```bash
-mkdir documcp && cd documcp
-
-cat > config.yaml <<'EOF'
-server:
-  port: 8080
-  data_dir: /app/data
-sources: []
-EOF
-
 docker run -d \
   --name documcp \
   -p 8080:8080 \
-  -v "$PWD/config.yaml:/app/config.yaml" \
   -v documcp-data:/app/data \
   ghcr.io/mathwro/documcp:latest
 ```
 
-Open `http://localhost:8080`. Add a public web source from the UI and trigger a crawl.
+Open `http://localhost:8080`. Add a public web source from the UI and trigger a crawl. The `documcp-data` named volume preserves your indexed content and any tokens you store across restarts.
 
-For private sources, exposing the port to your LAN, or building from source, see **[docs/install.md](docs/install.md)** — it covers the persistent secret key, when to set `DOCUMCP_API_KEY`, and the from-source path.
+For private sources, exposing the port to your LAN, declarative source seeding via `config.yaml`, or building from source, see **[docs/install.md](docs/install.md)**.
 
 ## Documentation
 
