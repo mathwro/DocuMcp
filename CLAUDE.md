@@ -49,7 +49,8 @@ docs/plans/         # Design doc + implementation plan
 - Container support: Makefile auto-detects podman vs docker (prefers podman)
 - Auth: Azure DevOps uses Microsoft device code flow (Azure CLI client ID `04b07795-8ddb-461a-bbee-02f9e1bf7b46`); GitHub (wiki + repo) uses user-supplied fine-grained PATs via `PUT /api/sources/{id}/auth/token`
 - Public GitHub repos/wikis crawl without a token; PAT only required for private resources
-- Config file is source of truth; Web UI reads/writes it; watcher reloads without restart
+- `config.yaml` is **optional** — when missing, built-in defaults apply (`port: 8080`, `data_dir: /app/data`, no declarative sources). When present, the watcher reloads it without restart. Sources added via the Web UI persist in SQLite (`db.Source`), NOT written back to YAML — YAML is operator-managed declarative seeding only
+- `DOCUMCP_CONFIG` set → `config.Load` (strict, missing file is fatal). Unset → `config.LoadOrDefault` (lenient, missing file falls back to defaults)
 - Tokens stored AES-256-GCM encrypted in SQLite, never in config file
 - Crawl progress tracked server-side (`crawlingIDs map[int64]bool` in API server); `CrawlTotal` stored in DB at crawl start, `PageCount` reset to 0 and flushed every 10 pages
 - `include_path` field: on `web` sources restricts crawling to a URL prefix (validated same-origin); on `github_repo` sources restricts indexing to a subfolder (`..` segments rejected)

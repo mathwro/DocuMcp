@@ -1,5 +1,7 @@
 # DocuMcp Implementation Plan
 
+> **Historical record — not authoritative.** This is the original task plan from 2026-02-27. All 27 tasks shipped (see `README.md`); subsequent changes are in `docs/plans/2026-*` files. Some original acceptance criteria no longer match shipped behavior — notably "Adding a public web source in UI writes to config.yaml" (the UI persists to SQLite instead) and the env-var defaults around `DOCUMCP_CONFIG` (now optional). Refer to current code and `docs/configuration.md` for the live contract.
+
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 ## Progress

@@ -1,6 +1,8 @@
 # DocuMcp Design Document
 **Date:** 2026-02-27
 
+> **Historical record — not authoritative.** This is the original design as written before implementation. Several assumptions have since changed; see `README.md`, `docs/configuration.md`, and `docs/sources.md` for current behavior. Notable drift: `config.yaml` is now optional (built-in defaults apply when missing); the Web UI persists sources to SQLite (not back to `config.yaml`); GitHub auth uses user-supplied fine-grained PATs (not the device-code flow this doc describes).
+
 ## Overview
 
 DocuMcp is a locally-hosted MCP (Model Context Protocol) server that indexes documentation from multiple sources and makes it quickly available to AI coding assistants. It runs as a single Docker/Podman container, is configured via a simple YAML file, and exposes indexed documentation through semantic search, full-text search, and hierarchical browsing.
