@@ -30,9 +30,4 @@ init:
 		echo "DOCUMCP_SECRET_KEY=$$(openssl rand -hex 32)" >> .env; \
 		echo "Added DOCUMCP_SECRET_KEY to .env"; \
 	fi
-	@if [ -f config.yaml ]; then \
-		echo "config.yaml already exists, skipping"; \
-	else \
-		cp config.example.yaml config.yaml; \
-		echo "Created config.yaml from config.example.yaml"; \
-	fi
+	@echo "config.yaml is optional. Copy config.example.yaml to config.yaml if you want declarative source seeding."
