@@ -36,6 +36,27 @@ type SourceConfig struct {
 	Token string `yaml:"-"`
 }
 
+// defaults returns a Config populated with the built-in defaults used when no
+// config file is present or fields are omitted.
+func defaults() *Config {
+	return &Config{
+		Server: ServerConfig{
+			Port:    8080,
+			DataDir: "/app/data",
+		},
+	}
+}
+
+// applyDefaults applies built-in defaults to cfg for any zero-valued fields.
+func applyDefaults(cfg *Config) {
+	if cfg.Server.Port == 0 {
+		cfg.Server.Port = 8080
+	}
+	if cfg.Server.DataDir == "" {
+		cfg.Server.DataDir = "/app/data"
+	}
+}
+
 func Load(path string) (*Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -45,11 +66,6 @@ func Load(path string) (*Config, error) {
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
 		return nil, fmt.Errorf("parsing config: %w", err)
 	}
-	if cfg.Server.Port == 0 {
-		cfg.Server.Port = 8080
-	}
-	if cfg.Server.DataDir == "" {
-		cfg.Server.DataDir = "/app/data"
-	}
+	applyDefaults(&cfg)
 	return &cfg, nil
 }
