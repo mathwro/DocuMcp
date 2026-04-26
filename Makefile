@@ -1,4 +1,4 @@
-.PHONY: build test lint docker run clean init
+.PHONY: build bench test lint docker run clean init
 
 # Detect OS and architecture from the Go toolchain
 GOOS   := $(shell go env GOOS)
@@ -20,6 +20,9 @@ COMPOSE_CMD := $(if $(_PODMAN_COMPOSE),podman-compose,$(CONTAINER_RUNTIME) compo
 
 build:
 	CGO_ENABLED=1 go build -tags sqlite_fts5 -o $(BINARY) ./cmd/documcp
+
+bench:
+	CGO_ENABLED=1 go build -tags sqlite_fts5 -o bin/bench ./cmd/bench
 
 test:
 	CGO_ENABLED=1 go test -tags sqlite_fts5 ./... -v -timeout 60s

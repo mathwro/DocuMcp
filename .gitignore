@@ -18,3 +18,5 @@ docs/superpowers/
 
 # Codex specific
 .codex
+# bench artefacts
+bench-results/
