@@ -1,0 +1,2 @@
+# Populated by `bench sample-urls --per-source N` after a DocuMcp instance is running.
+# One URL per line. Lines starting with # are ignored.
