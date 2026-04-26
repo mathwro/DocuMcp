@@ -1,0 +1,11 @@
+[
+  {
+    "id": "fts5-trigram-tokenizer",
+    "tier": 1,
+    "question": "What's the exact `tokenize=` value for FTS5's trigram tokenizer with a minimum length of 3?",
+    "expected_source": "sqlite-docs",
+    "expected_url_pattern": "sqlite\\.org/fts5\\.html",
+    "reference_excerpt": "tokenize = 'trigram detail=column case_sensitive 0' — see §4.3.5 trigram tokenizer; tokendata=1 unsupported",
+    "notes": "Tier 1 single-fact lookup. Operator: replace this entry with hand-written questions matching your indexed sources."
+  }
+]
