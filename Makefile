@@ -1,4 +1,4 @@
-.PHONY: build test lint docker run clean init
+.PHONY: build bench test lint docker run clean init
 
 # Auto-detect container runtime: prefer podman if available, fall back to docker
 CONTAINER_RUNTIME := $(shell command -v podman 2>/dev/null || command -v docker 2>/dev/null)
@@ -6,6 +6,9 @@ COMPOSE_CMD := $(shell command -v podman-compose 2>/dev/null || echo "$(CONTAINE
 
 build:
 	CGO_ENABLED=1 go build -tags sqlite_fts5 -o bin/documcp ./cmd/documcp
+
+bench:
+	CGO_ENABLED=1 go build -tags sqlite_fts5 -o bin/bench ./cmd/bench
 
 test:
 	CGO_ENABLED=1 go test -tags sqlite_fts5 ./... -v -timeout 60s

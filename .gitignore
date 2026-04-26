@@ -15,3 +15,6 @@ coverage.html
 
 docs/superpowers/
 .worktrees/
+
+# bench artefacts
+bench-results/
