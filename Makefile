@@ -1,11 +1,25 @@
 .PHONY: build test lint docker run clean init
 
+# Detect OS and architecture from the Go toolchain
+GOOS   := $(shell go env GOOS)
+GOARCH := $(shell go env GOARCH)
+
+# Binary name — appends .exe on Windows
+BINARY_EXT :=
+ifeq ($(GOOS),windows)
+  BINARY_EXT := .exe
+endif
+BINARY := bin/documcp$(BINARY_EXT)
+
 # Auto-detect container runtime: prefer podman if available, fall back to docker
-CONTAINER_RUNTIME := $(shell command -v podman 2>/dev/null || command -v docker 2>/dev/null)
-COMPOSE_CMD := $(shell command -v podman-compose 2>/dev/null || echo "$(CONTAINER_RUNTIME) compose")
+# `which` works on Linux, macOS, WSL, and Git Bash on Windows
+_PODMAN := $(shell which podman 2>/dev/null)
+CONTAINER_RUNTIME := $(if $(_PODMAN),podman,docker)
+_PODMAN_COMPOSE := $(shell which podman-compose 2>/dev/null)
+COMPOSE_CMD := $(if $(_PODMAN_COMPOSE),podman-compose,$(CONTAINER_RUNTIME) compose)
 
 build:
-	CGO_ENABLED=1 go build -tags sqlite_fts5 -o bin/documcp ./cmd/documcp
+	CGO_ENABLED=1 go build -tags sqlite_fts5 -o $(BINARY) ./cmd/documcp
 
 test:
 	CGO_ENABLED=1 go test -tags sqlite_fts5 ./... -v -timeout 60s
@@ -13,14 +27,18 @@ test:
 docker:
 	$(CONTAINER_RUNTIME) build -t documcp:local .
 
-run: $(CONTAINER_RUNTIME)
+run:
 	$(COMPOSE_CMD) up
 
 lint:
 	golangci-lint run
 
 clean:
+ifeq ($(GOOS),windows)
+	if exist bin rmdir /s /q bin
+else
 	rm -rf bin/
+endif
 
 init:
 	@touch .env
