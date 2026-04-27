@@ -18,6 +18,10 @@ import (
 )
 
 func runTasks(args []string) {
+	runTasksInto(newOutputDir(), args)
+}
+
+func runTasksInto(dir string, args []string) {
 	fs := flag.NewFlagSet("tasks", flag.ExitOnError)
 	corpusPath := fs.String("questions", "internal/bench/corpus/questions.json", "path to questions.json")
 	trials := fs.Int("trials", 3, "trials per (question, config)")
@@ -62,7 +66,6 @@ func runTasks(args []string) {
 		}
 	}
 
-	dir := newOutputDir()
 	rep := report.Report{
 		Metadata: report.Metadata{
 			Model:      "claude-sonnet-4-6",
