@@ -18,6 +18,10 @@ import (
 )
 
 func runPageDiff(args []string) {
+	runPageDiffInto(newOutputDir(), args)
+}
+
+func runPageDiffInto(dir string, args []string) {
 	fs := flag.NewFlagSet("page-diff", flag.ExitOnError)
 	urlsPath := fs.String("urls", "internal/bench/corpus/page-urls.txt", "path to URL list")
 	_ = fs.Parse(args)
@@ -49,7 +53,6 @@ func runPageDiff(args []string) {
 		fatal("page-diff: %v", err)
 	}
 
-	dir := newOutputDir()
 	rep := report.Report{
 		Metadata: report.Metadata{Model: "claude-sonnet-4-6", Timestamp: time.Now().UTC()},
 		PageDiff: res,
