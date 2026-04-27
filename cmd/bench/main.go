@@ -2,7 +2,6 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"os"
 )
@@ -46,11 +45,6 @@ Environment:
   DOCUMCP_API_KEY     Bearer token if DocuMcp requires auth`)
 }
 
-func runPageDiff(_ []string) {
-	fmt.Fprintln(os.Stderr, "page-diff: not yet implemented")
-	os.Exit(1)
-}
-
 func runTasks(_ []string) {
 	fmt.Fprintln(os.Stderr, "tasks: not yet implemented")
 	os.Exit(1)
@@ -61,10 +55,3 @@ func runAll(_ []string) {
 	os.Exit(1)
 }
 
-func runSampleURLs(args []string) {
-	fs := flag.NewFlagSet("sample-urls", flag.ExitOnError)
-	_ = fs.Int("per-source", 5, "max URLs per source")
-	_ = fs.Parse(args)
-	fmt.Fprintln(os.Stderr, "sample-urls: not yet implemented")
-	os.Exit(1)
-}
