@@ -45,11 +45,6 @@ Environment:
   DOCUMCP_API_KEY     Bearer token if DocuMcp requires auth`)
 }
 
-func runTasks(_ []string) {
-	fmt.Fprintln(os.Stderr, "tasks: not yet implemented")
-	os.Exit(1)
-}
-
 func runAll(_ []string) {
 	fmt.Fprintln(os.Stderr, "all: not yet implemented")
 	os.Exit(1)
