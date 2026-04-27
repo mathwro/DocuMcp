@@ -57,6 +57,29 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the development loop, code style, and
 
 To report a vulnerability, see [SECURITY.md](SECURITY.md).
 
+## Benchmarking Token Savings
+
+DocuMcp ships with a benchmark tool that measures whether using its MCP tools actually reduces agent token consumption versus a baseline of `web_search` + raw HTTP fetching. See `docs/plans/2026-04-26-token-savings-benchmark-design.md` for the full methodology.
+
+```bash
+# Build the benchmark binary
+make bench
+
+# Seed the per-page URL list from your running DocuMcp instance
+./bin/bench sample-urls --per-source 5
+
+# Per-page diff (calls Anthropic count_tokens API to size raw HTML, stripped HTML, DocuMcp text)
+ANTHROPIC_API_KEY=... ./bin/bench page-diff
+
+# Full task benchmark (~few dollars in API spend at default 3 trials × 15 questions × 2 configs)
+ANTHROPIC_API_KEY=... ./bin/bench tasks
+
+# Run both into one output directory
+ANTHROPIC_API_KEY=... ./bin/bench all
+```
+
+Output lands in `bench-results/<timestamp>/` (`results.json` + `summary.md`). Curate questions in `internal/bench/corpus/questions.json` before the first `tasks` run.
+
 ## License
 
 GPL-3.0 — see [LICENSE](LICENSE).
