@@ -133,6 +133,12 @@ func buildConfig(cfg string, mcp *tasks.MCPClient) ([]map[string]any, map[string
 func judgeOne(ctx context.Context, api tasks.API, mcp *tasks.MCPClient, q tasks.Question, res *tasks.TrialResult) (int, int) {
 	// Verify URL pattern matches at least one cited URL — otherwise mark incorrect
 	// without spending judge tokens.
+	if len(res.CitedURLs) == 0 {
+		res.Correct = false
+		res.JudgeReason = "no URL cited"
+		return 0, 0
+	}
+
 	hasMatch := false
 	for _, u := range res.CitedURLs {
 		if q.URLRegex().MatchString(u) {
@@ -140,7 +146,7 @@ func judgeOne(ctx context.Context, api tasks.API, mcp *tasks.MCPClient, q tasks.
 			break
 		}
 	}
-	if !hasMatch && len(res.CitedURLs) > 0 {
+	if !hasMatch {
 		res.Correct = false
 		res.JudgeReason = "cited URL did not match expected_url_pattern"
 		return 0, 0
