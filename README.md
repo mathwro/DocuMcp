@@ -16,11 +16,21 @@ A self-hosted MCP (Model Context Protocol) server that indexes your documentatio
 
 The fastest way to get running — single user, container on `localhost`, no config file or API key needed.
 
+Bash command
 ```bash
 docker run -d \
   --name documcp \
   -p 8080:8080 \
   -v documcp-data:/app/data \
+  ghcr.io/mathwro/documcp:latest
+```
+
+PowerShell command
+```powershell
+docker run -d `
+  --name documcp `
+  -p 8080:8080 `
+  -v documcp-data:/app/data `
   ghcr.io/mathwro/documcp:latest
 ```
 
