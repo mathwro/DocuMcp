@@ -35,6 +35,14 @@ func (s *Server) Handler() http.Handler {
 	}, nil)
 }
 
+// StreamableHTTPHandler returns an HTTP handler for clients that use the
+// streamable HTTP MCP transport.
+func (s *Server) StreamableHTTPHandler() http.Handler {
+	return sdkmcp.NewStreamableHTTPHandler(func(r *http.Request) *sdkmcp.Server {
+		return s.server
+	}, nil)
+}
+
 // SDKServer exposes the underlying go-sdk server for testing.
 func (s *Server) SDKServer() *sdkmcp.Server {
 	return s.server

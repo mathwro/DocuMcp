@@ -1,6 +1,9 @@
 # MCP Integration
 
-The MCP server is available at `http://localhost:8080/mcp/` using Server-Sent Events (SSE) transport.
+The MCP server exposes two local transports:
+
+- `http://localhost:8080/mcp/` for Server-Sent Events (SSE) clients such as Claude.
+- `http://localhost:8080/mcp` for streamable HTTP clients such as Codex.
 
 ## Claude Desktop (`claude_desktop_config.json`)
 
@@ -34,6 +37,15 @@ The MCP server is available at `http://localhost:8080/mcp/` using Server-Sent Ev
 ```
 
 Omit the `headers` block when `DOCUMCP_API_KEY` is unset (the typical local-only setup — see [install.md](install.md#when-to-set-documcp_api_key)). Restart Claude Code so it picks up the config change; run `/mcp` to confirm the server is connected.
+
+## Codex (`~/.codex/config.toml`)
+
+```toml
+[mcp_servers.documcp]
+url = "http://localhost:8080/mcp"
+```
+
+If `DOCUMCP_API_KEY` is set, configure Codex with `bearer_token_env_var = "DOCUMCP_API_KEY"` and export the same environment variable before starting Codex.
 
 ## Available MCP Tools
 

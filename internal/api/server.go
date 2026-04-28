@@ -25,35 +25,43 @@ type pendingFlow struct {
 
 // Server is the REST API server for the Web UI.
 type Server struct {
-	store        *db.Store
-	crawler      *crawler.Crawler
-	mcpHandler   http.Handler
-	mux          *http.ServeMux
-	handler      http.Handler // full middleware chain, built once in NewServer
-	tokenStore   *auth.TokenStore
-	pendingFlows map[int64]*pendingFlow
-	flowMu       sync.Mutex
-	crawlingIDs  map[int64]bool // source IDs with an active crawl goroutine
-	crawlingMu   sync.Mutex
-	cancel       context.CancelFunc // cancels background work on Shutdown
-	ctx          context.Context    // cancelled when Shutdown is called
+	store                *db.Store
+	crawler              *crawler.Crawler
+	mcpHandler           http.Handler
+	mcpStreamableHandler http.Handler
+	mux                  *http.ServeMux
+	handler              http.Handler // full middleware chain, built once in NewServer
+	tokenStore           *auth.TokenStore
+	pendingFlows         map[int64]*pendingFlow
+	flowMu               sync.Mutex
+	crawlingIDs          map[int64]bool // source IDs with an active crawl goroutine
+	crawlingMu           sync.Mutex
+	cancel               context.CancelFunc // cancels background work on Shutdown
+	ctx                  context.Context    // cancelled when Shutdown is called
 }
 
 // NewServer creates a new API server wired to the given store, crawler, and MCP handler.
 // Pass nil for mcpHandler and/or crawler when not needed (e.g. in tests).
 // key must be exactly 32 bytes and is used for AES-256-GCM token encryption.
 func NewServer(store *db.Store, c *crawler.Crawler, mcpHandler http.Handler, key []byte) *Server {
+	return NewServerWithMCPHandlers(store, c, mcpHandler, nil, key)
+}
+
+// NewServerWithMCPHandlers creates a new API server with separate MCP handlers
+// for SSE (/mcp/) and streamable HTTP (/mcp) clients.
+func NewServerWithMCPHandlers(store *db.Store, c *crawler.Crawler, mcpHandler, mcpStreamableHandler http.Handler, key []byte) *Server {
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &Server{
-		store:        store,
-		crawler:      c,
-		mcpHandler:   mcpHandler,
-		mux:          http.NewServeMux(),
-		tokenStore:   auth.NewTokenStore(store, key),
-		pendingFlows: make(map[int64]*pendingFlow),
-		crawlingIDs:  make(map[int64]bool),
-		ctx:          ctx,
-		cancel:       cancel,
+		store:                store,
+		crawler:              c,
+		mcpHandler:           mcpHandler,
+		mcpStreamableHandler: mcpStreamableHandler,
+		mux:                  http.NewServeMux(),
+		tokenStore:           auth.NewTokenStore(store, key),
+		pendingFlows:         make(map[int64]*pendingFlow),
+		crawlingIDs:          make(map[int64]bool),
+		ctx:                  ctx,
+		cancel:               cancel,
 	}
 	s.routes()
 	// Build the middleware chain once at construction time.
@@ -87,6 +95,9 @@ func (s *Server) routes() {
 	if s.mcpHandler != nil {
 		s.mux.Handle("/mcp/", s.mcpHandler)
 	}
+	if s.mcpStreamableHandler != nil {
+		s.mux.Handle("/mcp", s.mcpStreamableHandler)
+	}
 	s.mux.Handle("/", http.FileServer(web.FileSystem()))
 }
 
@@ -97,7 +108,7 @@ func apiKeyMiddleware(apiKey string, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if apiKey != "" {
 			path := r.URL.Path
-			if strings.HasPrefix(path, "/api/") || strings.HasPrefix(path, "/mcp/") {
+			if strings.HasPrefix(path, "/api/") || path == "/mcp" || strings.HasPrefix(path, "/mcp/") {
 				got := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
 				if subtle.ConstantTimeCompare([]byte(got), []byte(apiKey)) != 1 {
 					w.Header().Set("Content-Type", "application/json")
