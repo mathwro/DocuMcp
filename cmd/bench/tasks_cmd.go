@@ -17,16 +17,20 @@ import (
 	"github.com/mathwro/DocuMcp/internal/bench/tasks"
 )
 
-func runTasks(args []string) {
-	runTasksInto(newOutputDir(), args)
+type tasksOpts struct {
+	CorpusPath string
+	Trials     int
 }
 
-func runTasksInto(dir string, args []string) {
+func runTasks(args []string) {
 	fs := flag.NewFlagSet("tasks", flag.ExitOnError)
 	corpusPath := fs.String("questions", "internal/bench/corpus/questions.json", "path to questions.json")
 	trials := fs.Int("trials", 3, "trials per (question, config)")
 	_ = fs.Parse(args)
+	runTasksInto(newOutputDir(), tasksOpts{CorpusPath: *corpusPath, Trials: *trials})
+}
 
+func runTasksInto(dir string, opts tasksOpts) {
 	apiKey := mustEnv("ANTHROPIC_API_KEY")
 	docURL := envOr("DOCUMCP_BENCH_URL", "http://127.0.0.1:8080")
 	bearer := os.Getenv("DOCUMCP_API_KEY")
@@ -36,7 +40,7 @@ func runTasksInto(dir string, args []string) {
 	if err != nil {
 		fatal("fetch sources: %v", err)
 	}
-	corpus, err := tasks.LoadCorpus(*corpusPath, known)
+	corpus, err := tasks.LoadCorpus(opts.CorpusPath, known)
 	if err != nil {
 		fatal("corpus: %v", err)
 	}
@@ -47,14 +51,14 @@ func runTasksInto(dir string, args []string) {
 	api := tasks.NewAnthropicAPI(apiKey, "claude-sonnet-4-6")
 	mcp := tasks.NewMCPClient(docURL+"/mcp", bearer)
 
-	allTrials := make([]tasks.TrialResult, 0, len(corpus)*2*(*trials))
+	allTrials := make([]tasks.TrialResult, 0, len(corpus)*2*opts.Trials)
 	tiers := make(map[string]int, len(corpus))
 	var judgeAcc tasks.JudgeAccounting
 
 	for _, q := range corpus {
 		tiers[q.ID] = q.Tier
 		for _, cfg := range []string{"A", "B"} {
-			for i := 1; i <= *trials; i++ {
+			for i := 1; i <= opts.Trials; i++ {
 				res := runOneTrial(ctx, api, mcp, q, cfg, i)
 				ji, jo := judgeOne(ctx, api, mcp, q, &res)
 				judgeAcc.InputTokens += ji
@@ -70,7 +74,7 @@ func runTasksInto(dir string, args []string) {
 		Metadata: report.Metadata{
 			Model:      "claude-sonnet-4-6",
 			GitSHA:     gitSHA(),
-			CorpusHash: hashFile(*corpusPath),
+			CorpusHash: hashFile(opts.CorpusPath),
 			Timestamp:  time.Now().UTC(),
 		},
 		Trials: allTrials,

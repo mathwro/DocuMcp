@@ -17,25 +17,28 @@ import (
 	"github.com/mathwro/DocuMcp/internal/bench/tokens"
 )
 
-func runPageDiff(args []string) {
-	runPageDiffInto(newOutputDir(), args)
+type pageDiffOpts struct {
+	URLsPath string
 }
 
-func runPageDiffInto(dir string, args []string) {
+func runPageDiff(args []string) {
 	fs := flag.NewFlagSet("page-diff", flag.ExitOnError)
 	urlsPath := fs.String("urls", "internal/bench/corpus/page-urls.txt", "path to URL list")
 	_ = fs.Parse(args)
+	runPageDiffInto(newOutputDir(), pageDiffOpts{URLsPath: *urlsPath})
+}
 
+func runPageDiffInto(dir string, opts pageDiffOpts) {
 	apiKey := mustEnv("ANTHROPIC_API_KEY")
 	docURL := envOr("DOCUMCP_BENCH_URL", "http://127.0.0.1:8080")
 	bearer := os.Getenv("DOCUMCP_API_KEY")
 
-	urls, err := loadURLs(*urlsPath)
+	urls, err := loadURLs(opts.URLsPath)
 	if err != nil {
 		fatal("load urls: %v", err)
 	}
 	if len(urls) == 0 {
-		fatal("no URLs in %s — did you run `bench sample-urls` and commit the result?", *urlsPath)
+		fatal("no URLs in %s — did you run `bench sample-urls` and commit the result?", opts.URLsPath)
 	}
 
 	counter := tokens.New(apiKey, "claude-sonnet-4-6")
