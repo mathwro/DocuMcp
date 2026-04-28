@@ -2,99 +2,139 @@
 package tasks
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"strings"
-	"sync/atomic"
-	"time"
+	"sync"
+
+	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-// MCPClient is a minimal JSON-RPC client for DocuMcp's /mcp/ endpoint.
-// We don't use the full MCP Go SDK here — we only need tools/call, and the
-// minimal client keeps the bench tool's blast radius small and easy to test.
+// MCPClient talks to a DocuMcp /mcp/ endpoint over the MCP-over-SSE transport
+// using the upstream Go SDK. It connects lazily on the first CallTool and
+// reuses the resulting session for subsequent calls.
 type MCPClient struct {
 	endpoint string
 	bearer   string // optional Authorization Bearer token
-	client   *http.Client
-	idCount  atomic.Int64
+
+	mu         sync.Mutex
+	session    *sdkmcp.ClientSession
+	connectErr error
+	connected  bool
 }
 
+// NewMCPClient builds a client targeting the given endpoint URL. The endpoint
+// must point at the MCP SSE entry path (typically `<base>/mcp` or `<base>/mcp/`).
+// The bearer token is optional; when set it's added as `Authorization: Bearer <token>`
+// to every HTTP request the SDK transport makes (both the SSE GET and the
+// session POSTs).
 func NewMCPClient(endpoint, bearer string) *MCPClient {
 	return &MCPClient{
 		endpoint: endpoint,
 		bearer:   bearer,
-		client:   &http.Client{Timeout: 60 * time.Second},
 	}
 }
 
-// CallTool invokes the named MCP tool with the given arguments and returns the
-// concatenated text content of the response.
-func (c *MCPClient) CallTool(ctx context.Context, name string, args map[string]any) (string, error) {
-	id := c.idCount.Add(1)
-	body, err := json.Marshal(map[string]any{
-		"jsonrpc": "2.0",
-		"id":      id,
-		"method":  "tools/call",
-		"params": map[string]any{
-			"name":      name,
-			"arguments": args,
-		},
-	})
-	if err != nil {
-		return "", fmt.Errorf("marshal: %w", err)
-	}
+// bearerTransport injects an Authorization: Bearer header on every request.
+type bearerTransport struct {
+	inner http.RoundTripper
+	token string
+}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.endpoint, bytes.NewReader(body))
-	if err != nil {
-		return "", fmt.Errorf("new request: %w", err)
+func (b *bearerTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	// Clone to avoid mutating the caller's request (RoundTripper contract).
+	r := req.Clone(req.Context())
+	r.Header.Set("Authorization", "Bearer "+b.token)
+	return b.inner.RoundTrip(r)
+}
+
+// connect dials the MCP server and runs the initialize handshake. Subsequent
+// callers find a cached session (or cached connect error). Guarded by mu so
+// concurrent CallTool callers serialize on the first connect.
+func (c *MCPClient) connect(ctx context.Context) (*sdkmcp.ClientSession, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.connected {
+		return c.session, c.connectErr
 	}
-	req.Header.Set("content-type", "application/json")
+	c.connected = true
+
+	httpClient := http.DefaultClient
 	if c.bearer != "" {
-		req.Header.Set("authorization", "Bearer "+c.bearer)
-	}
-
-	resp, err := c.client.Do(req)
-	if err != nil {
-		return "", fmt.Errorf("post: %w", err)
-	}
-	defer resp.Body.Close()
-
-	respBytes, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", fmt.Errorf("read: %w", err)
-	}
-	if resp.StatusCode/100 != 2 {
-		return "", fmt.Errorf("mcp returned %d: %s", resp.StatusCode, string(respBytes))
-	}
-
-	var rb struct {
-		Result struct {
-			Content []struct {
-				Type string `json:"type"`
-				Text string `json:"text"`
-			} `json:"content"`
-		} `json:"result"`
-		Error *struct {
-			Message string `json:"message"`
-		} `json:"error"`
-	}
-	if err := json.Unmarshal(respBytes, &rb); err != nil {
-		return "", fmt.Errorf("unmarshal: %w", err)
-	}
-	if rb.Error != nil {
-		return "", fmt.Errorf("mcp error: %s", rb.Error.Message)
-	}
-	var out strings.Builder
-	for _, p := range rb.Result.Content {
-		if p.Type == "text" {
-			out.WriteString(p.Text)
+		httpClient = &http.Client{
+			Transport: &bearerTransport{
+				inner: http.DefaultTransport,
+				token: c.bearer,
+			},
 		}
 	}
-	return out.String(), nil
+
+	transport := &sdkmcp.SSEClientTransport{
+		Endpoint:   c.endpoint,
+		HTTPClient: httpClient,
+	}
+	client := sdkmcp.NewClient(&sdkmcp.Implementation{
+		Name:    "documcp-bench",
+		Version: "1.0.0",
+	}, nil)
+
+	session, err := client.Connect(ctx, transport, nil)
+	if err != nil {
+		c.connectErr = fmt.Errorf("mcp connect: %w", err)
+		return nil, c.connectErr
+	}
+	c.session = session
+	return session, nil
+}
+
+// CallTool invokes the named MCP tool with the given arguments and returns the
+// concatenated text content of the response. The first call establishes the
+// SSE session and runs the initialize handshake; later calls reuse the session.
+func (c *MCPClient) CallTool(ctx context.Context, name string, args map[string]any) (string, error) {
+	session, err := c.connect(ctx)
+	if err != nil {
+		return "", err
+	}
+
+	res, err := session.CallTool(ctx, &sdkmcp.CallToolParams{
+		Name:      name,
+		Arguments: args,
+	})
+	if err != nil {
+		return "", fmt.Errorf("call tool: %w", err)
+	}
+	if res.IsError {
+		// Surface the textual error payload, matching the LLM-visible error contract.
+		return "", fmt.Errorf("mcp tool %q error: %s", name, extractText(res.Content))
+	}
+	return extractText(res.Content), nil
+}
+
+// Close releases the underlying SSE session if one was established. Safe to
+// call zero or multiple times; bench callers are not required to call it.
+func (c *MCPClient) Close() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.session == nil {
+		return nil
+	}
+	s := c.session
+	c.session = nil
+	return s.Close()
+}
+
+// extractText concatenates the text payload of every TextContent block in the
+// result, ignoring image/audio/resource blocks (which the bench corpus doesn't
+// expect from any of the four DocuMcp tools).
+func extractText(blocks []sdkmcp.Content) string {
+	var out strings.Builder
+	for _, b := range blocks {
+		if t, ok := b.(*sdkmcp.TextContent); ok {
+			out.WriteString(t.Text)
+		}
+	}
+	return out.String()
 }
 
 // ConfigBTools returns the tool list for Configuration B: the four DocuMcp MCP tools
