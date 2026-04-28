@@ -86,6 +86,72 @@ func TestRunner_ExecutesToolThenAnswers(t *testing.T) {
 	}
 }
 
+func TestRunner_TracksToolUseURLs(t *testing.T) {
+	api := &scriptedAPI{
+		responses: []apiResponse{
+			{
+				StopReason:   "tool_use",
+				InputTokens:  50,
+				OutputTokens: 10,
+				ToolCalls: []toolCall{
+					{ID: "t1", Name: "fetch_url", Input: map[string]any{"url": "https://docs.example.com/fetched"}},
+					{ID: "t2", Name: "get_page", Input: map[string]any{"url": "https://docs.example.com/page"}},
+				},
+			},
+			{
+				StopReason:   "end_turn",
+				InputTokens:  20,
+				OutputTokens: 5,
+				FinalText:    "The answer is 42.", // no URL in answer text
+			},
+		},
+	}
+	tools := map[string]ToolHandler{
+		"fetch_url": func(_ context.Context, _ map[string]any) (string, error) { return "x", nil },
+		"get_page":  func(_ context.Context, _ map[string]any) (string, error) { return "y", nil },
+	}
+	res, err := RunTrial(context.Background(), api, tools, ConfigATools(), "q?", RunLimits{MaxRounds: 5})
+	if err != nil {
+		t.Fatalf("RunTrial: %v", err)
+	}
+	if len(res.CitedURLs) != 2 {
+		t.Fatalf("want 2 cited URLs, got %v", res.CitedURLs)
+	}
+	want := map[string]bool{
+		"https://docs.example.com/fetched": true,
+		"https://docs.example.com/page":    true,
+	}
+	for _, u := range res.CitedURLs {
+		if !want[u] {
+			t.Errorf("unexpected URL %q in CitedURLs", u)
+		}
+	}
+}
+
+func TestRunner_DedupsCitedURLs(t *testing.T) {
+	url := "https://docs.example.com/x"
+	api := &scriptedAPI{
+		responses: []apiResponse{
+			{
+				StopReason: "tool_use", InputTokens: 1, OutputTokens: 1,
+				ToolCalls: []toolCall{{ID: "t1", Name: "fetch_url", Input: map[string]any{"url": url}}},
+			},
+			{
+				StopReason: "end_turn", InputTokens: 1, OutputTokens: 1,
+				FinalText: "Source: " + url + " — answer.",
+			},
+		},
+	}
+	tools := map[string]ToolHandler{"fetch_url": func(_ context.Context, _ map[string]any) (string, error) { return "x", nil }}
+	res, err := RunTrial(context.Background(), api, tools, ConfigATools(), "q?", RunLimits{MaxRounds: 5})
+	if err != nil {
+		t.Fatalf("RunTrial: %v", err)
+	}
+	if len(res.CitedURLs) != 1 || res.CitedURLs[0] != url {
+		t.Fatalf("want exactly [%s], got %v", url, res.CitedURLs)
+	}
+}
+
 func TestRunner_AbortsOnMaxRounds(t *testing.T) {
 	loopResp := apiResponse{
 		StopReason:   "tool_use",
