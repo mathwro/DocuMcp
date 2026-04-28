@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"regexp"
+	"sort"
 	"time"
 )
 
@@ -62,6 +63,7 @@ func RunTrial(ctx context.Context, api API, handlers map[string]ToolHandler, too
 		{"role": "user", "content": question},
 	}
 	res := TrialResult{}
+	cited := map[string]bool{}
 	for round := 0; round < lim.MaxRounds; round++ {
 		resp, err := api.Send(overallCtx, tools, prependSystem(messages))
 		if err != nil {
@@ -72,12 +74,24 @@ func RunTrial(ctx context.Context, api API, handlers map[string]ToolHandler, too
 
 		if resp.StopReason == "end_turn" {
 			res.FinalAnswer = resp.FinalText
-			res.CitedURLs = urlRe.FindAllString(resp.FinalText, -1)
+			for _, u := range urlRe.FindAllString(resp.FinalText, -1) {
+				cited[u] = true
+			}
+			res.CitedURLs = sortedKeys(cited)
 			return res, nil
 		}
 		if resp.StopReason != "tool_use" {
 			res.Aborted = true
 			return res, nil
+		}
+
+		// Track URLs actually fetched via tool calls.
+		for _, tc := range resp.ToolCalls {
+			if tc.Name == "fetch_url" || tc.Name == "get_page" {
+				if u, ok := tc.Input["url"].(string); ok && u != "" {
+					cited[u] = true
+				}
+			}
 		}
 
 		// Build the assistant message that produced these tool calls. We must echo
@@ -139,4 +153,14 @@ func prependSystem(msgs []map[string]any) []map[string]any {
 	out := make([]map[string]any, 0, len(msgs)+1)
 	out = append(out, map[string]any{"role": "system", "content": systemPrompt})
 	return append(out, msgs...)
+}
+
+// sortedKeys returns the keys of m in sorted order.
+func sortedKeys(m map[string]bool) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
 }
