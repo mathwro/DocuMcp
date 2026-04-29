@@ -91,7 +91,7 @@ Crawl(ctx context.Context, source config.SourceConfig, sourceID int64) (int, <-c
 - **Tokens:** AES-256-GCM encrypted in SQLite; key from `DOCUMCP_SECRET_KEY` env var
 - **API auth:** optional `DOCUMCP_API_KEY` bearer token on `/api/*` and `/mcp/*`; constant-time compared
 - **Bind address:** defaults to `127.0.0.1:<port>`; override with `DOCUMCP_BIND_ADDR`; the container image pre-sets `0.0.0.0:8080`
-- **MCP:** `github.com/modelcontextprotocol/go-sdk` v0.8.0, SSE transport at `/mcp/`
+- **MCP:** `github.com/modelcontextprotocol/go-sdk` v0.8.0, SSE transport at `/mcp/sse`, streamable HTTP transport at `/mcp/http`
 - **Container:** multi-stage Dockerfile, non-root user `documcp` (uid 1001), podman-compatible
 
 ## Source Types

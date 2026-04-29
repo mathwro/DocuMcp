@@ -2,8 +2,10 @@
 
 The MCP server exposes two local transports:
 
-- `http://localhost:8080/mcp/` for Server-Sent Events (SSE) clients such as Claude.
-- `http://localhost:8080/mcp` for streamable HTTP clients such as Codex.
+- `http://localhost:8080/mcp/sse` for Server-Sent Events (SSE) clients such as Claude.
+- `http://localhost:8080/mcp/http` for streamable HTTP clients such as Codex.
+
+For compatibility with older configs, `http://localhost:8080/mcp/` still serves SSE and `http://localhost:8080/mcp` still serves streamable HTTP. Prefer the explicit endpoints above for new setup.
 
 ## Claude Desktop (`claude_desktop_config.json`)
 
@@ -11,7 +13,7 @@ The MCP server exposes two local transports:
 {
   "mcpServers": {
     "documcp": {
-      "url": "http://localhost:8080/mcp/",
+      "url": "http://localhost:8080/mcp/sse",
       "headers": {
         "Authorization": "Bearer <your-api-key>"
       }
@@ -27,7 +29,7 @@ The MCP server exposes two local transports:
   "mcpServers": {
     "documcp": {
       "type": "sse",
-      "url": "http://localhost:8080/mcp/",
+      "url": "http://localhost:8080/mcp/sse",
       "headers": {
         "Authorization": "Bearer <your-api-key>"
       }
@@ -42,7 +44,7 @@ Omit the `headers` block when `DOCUMCP_API_KEY` is unset (the typical local-only
 
 ```toml
 [mcp_servers.documcp]
-url = "http://localhost:8080/mcp"
+url = "http://localhost:8080/mcp/http"
 ```
 
 If `DOCUMCP_API_KEY` is set, configure Codex with `bearer_token_env_var = "DOCUMCP_API_KEY"` and export the same environment variable before starting Codex.

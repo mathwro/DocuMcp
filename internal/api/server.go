@@ -48,7 +48,7 @@ func NewServer(store *db.Store, c *crawler.Crawler, mcpHandler http.Handler, key
 }
 
 // NewServerWithMCPHandlers creates a new API server with separate MCP handlers
-// for SSE (/mcp/) and streamable HTTP (/mcp) clients.
+// for SSE (/mcp/sse) and streamable HTTP (/mcp/http) clients.
 func NewServerWithMCPHandlers(store *db.Store, c *crawler.Crawler, mcpHandler, mcpStreamableHandler http.Handler, key []byte) *Server {
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &Server{
@@ -93,9 +93,11 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("PUT /api/sources/{id}/auth/token", s.authSetToken)
 	s.mux.HandleFunc("DELETE /api/sources/{id}/auth", s.authRevoke)
 	if s.mcpHandler != nil {
+		s.mux.Handle("/mcp/sse", s.mcpHandler)
 		s.mux.Handle("/mcp/", s.mcpHandler)
 	}
 	if s.mcpStreamableHandler != nil {
+		s.mux.Handle("/mcp/http", s.mcpStreamableHandler)
 		s.mux.Handle("/mcp", s.mcpStreamableHandler)
 	}
 	s.mux.Handle("/", http.FileServer(web.FileSystem()))
