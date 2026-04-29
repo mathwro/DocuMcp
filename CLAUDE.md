@@ -1,5 +1,17 @@
 # DocuMcp — Claude Code Instructions
 
+## Branch Strategy (READ FIRST)
+
+**Before starting any new work — feature, fix, refactor, docs, or anything else — confirm with the user whether to:**
+- (a) stay on the current branch, or
+- (b) create a new dedicated branch (and confirm its name).
+
+**Always ask, regardless of perceived size.** A "small fix" can grow and mix with unrelated in-flight work, leaving a branch that's painful to recover from. We've already had to manually rescue a tangled branch into `feat/bench-token-savings` once; the rule exists to prevent a repeat.
+
+When in doubt, the default is **create a new branch named for the goal** (`feat/...`, `fix/...`, `docs/...`). If the user says "stay on this branch," that's fine — but the question must be asked, not assumed.
+
+This rule applies before any code edit, file write, or commit. Do not skip it for "obvious" or "trivial" tasks.
+
 ## Build & Test
 ```bash
 # Always use both flags — CGo and FTS5 are required
