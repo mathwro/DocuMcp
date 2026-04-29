@@ -14,6 +14,9 @@ This rule applies before any code edit, file write, or commit. Do not skip it fo
 
 ## Build & Test
 ```bash
+# Create .env with DOCUMCP_SECRET_KEY
+make init
+
 # Always use both flags — CGo and FTS5 are required
 CGO_ENABLED=1 go build -tags sqlite_fts5 ./...
 CGO_ENABLED=1 go test -tags sqlite_fts5 ./...
@@ -21,6 +24,10 @@ CGO_ENABLED=1 go test -tags sqlite_fts5 ./...
 # Makefile wraps these correctly
 make build
 make test
+make bench
+make lint
+make docker
+make run
 ```
 
 ## Project Structure
@@ -58,6 +65,15 @@ docs/plans/         # Per-feature design + implementation plans (one pair per ma
 - **HTML extraction:** `skipTags` in `extract.go` excludes script/style/noscript/iframe/nav/footer/header/aside; title prefers h1, falls back to `<title>` tag (keeps longer side of ` | ` split)
 - **Search snippets:** HTML tags stripped via regex in `scanResults` before returning results
 
+## Coding & Review Hygiene
+- Run `gofmt -w .` before submitting Go changes
+- Use short lowercase package names, `CamelCase` exports, and `camelCase` internals
+- Before a PR, run `gofmt -w .`, `CGO_ENABLED=1 go vet -tags sqlite_fts5 ./...`, and `CGO_ENABLED=1 go test -tags sqlite_fts5 -race ./...`
+- Recent commits use Conventional Commits, for example `feat(bench): add JSON report writer` and `fix(bench): parse flags once`
+- Keep branches focused and target `main`
+- PRs should explain why, summarize changes, link issues, and list test commands
+- Include screenshots only for UI changes
+
 ## Architecture Decisions
 - Single Go binary — MCP server + Web UI + REST API + crawlers in one process
 - SQLite with FTS5 (keyword) + sqlite-vec (vector) for hybrid search
@@ -85,6 +101,12 @@ docs/plans/         # Per-feature design + implementation plans (one pair per ma
 | `DOCUMCP_MODEL_PATH` | ONNX model directory. Default `/app/models/all-MiniLM-L6-v2` |
 
 Detailed reference: `docs/configuration.md`. CI runs `CGO_ENABLED=1 go test -race -tags sqlite_fts5 ./...` (see `.github/workflows/ci.yml`).
+
+## Security & Local Files
+- Do not commit `.env`, real tokens, or local `config.yaml`
+- `DOCUMCP_CONFIG` enables strict config loading; unset uses defaults
+- `DOCUMCP_SECRET_KEY` protects stored tokens; unset keys are ephemeral
+- `DOCUMCP_API_KEY` protects `/api/*` and `/mcp/*`
 
 ## History
 The project shipped its initial 27-task plan and several follow-ups; see `git log` for the full changelog and `docs/plans/` for per-feature design + implementation pairs. This file documents the current contract, not the path that got us here.
