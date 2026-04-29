@@ -1,44 +1,71 @@
-# Stage 1: Build the Go binary
-FROM golang:1.26-bookworm AS builder
+# syntax=docker/dockerfile:1.7
 
-RUN apt-get update && apt-get install -y gcc libsqlite3-dev && rm -rf /var/lib/apt/lists/*
+# Stage 1: Build the Go binary on the native builder platform. Buildx provides
+# TARGETOS/TARGETARCH for the requested output image platform.
+FROM --platform=$BUILDPLATFORM golang:1.26-bookworm AS builder
+
+ARG TARGETOS
+ARG TARGETARCH
+
+RUN set -eux; \
+    packages="gcc libsqlite3-dev"; \
+    case "$TARGETARCH" in \
+      amd64) ;; \
+      arm64) packages="$packages gcc-aarch64-linux-gnu" ;; \
+      *) echo "unsupported TARGETARCH: $TARGETARCH" >&2; exit 1 ;; \
+    esac; \
+    apt-get update; \
+    apt-get install -y $packages; \
+    rm -rf /var/lib/apt/lists/*
 
 WORKDIR /build
 COPY go.mod go.sum ./
-RUN go mod download
+RUN --mount=type=cache,target=/go/pkg/mod \
+    go mod download
 
 COPY . .
-RUN CGO_ENABLED=1 GOOS=linux go build -tags sqlite_fts5 -o /documcp ./cmd/documcp
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    case "$TARGETARCH" in \
+      amd64) export CC=gcc ;; \
+      arm64) export CC=aarch64-linux-gnu-gcc ;; \
+      *) echo "unsupported TARGETARCH: $TARGETARCH" >&2; exit 1 ;; \
+    esac \
+    && CGO_ENABLED=1 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -tags sqlite_fts5 -o /documcp ./cmd/documcp
 
 # Stage 2: Download and export the ONNX model
-FROM python:3.12-slim AS model-downloader
+FROM --platform=$BUILDPLATFORM python:3.12-slim AS model-downloader
 
 # Pin versions to ensure reproducible model exports.
 # Check https://github.com/huggingface/optimum for latest stable version.
-RUN pip install --no-cache-dir "optimum[onnxruntime]"
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install "optimum[onnxruntime]"
 
 RUN optimum-cli export onnx \
     --model sentence-transformers/all-MiniLM-L6-v2 \
     --task feature-extraction \
     /models/all-MiniLM-L6-v2
 
-# Stage 3: Minimal runtime image
-FROM debian:bookworm-slim
+# Stage 3: Install CA certificates once on the native builder platform. The
+# certificate bundle is architecture-independent and avoids emulated apt work.
+FROM --platform=$BUILDPLATFORM debian:bookworm-slim AS certs
 
 RUN apt-get update \
     && apt-get install -y ca-certificates \
+    && mkdir -p /empty-data \
     && rm -rf /var/lib/apt/lists/*
 
-COPY --from=builder /documcp /usr/local/bin/documcp
-COPY --from=model-downloader /models /app/models
+# Stage 4: Minimal runtime image
+FROM debian:bookworm-slim
 
-RUN mkdir -p /app/data
+COPY --from=certs /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+COPY --chown=1001:1001 --from=builder /documcp /usr/local/bin/documcp
+COPY --chown=1001:1001 --from=model-downloader /models /app/models
+COPY --chown=1001:1001 --from=certs /empty-data /app/data
 
-RUN groupadd --gid 1001 documcp \
-    && useradd --uid 1001 --gid 1001 --no-create-home documcp \
-    && chown -R documcp:documcp /app /usr/local/bin/documcp
+WORKDIR /app
 
-USER documcp
+USER 1001:1001
 
 EXPOSE 8080
 
