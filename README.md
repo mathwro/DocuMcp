@@ -38,6 +38,15 @@ Open `http://localhost:8080`. Add a public web source from the UI and trigger a 
 
 For private sources, exposing the port to your LAN, declarative source seeding via `config.yaml`, or building from source, see **[docs/install.md](docs/install.md)**.
 
+### AI-assisted setup
+
+Give this to your AI coding assistant:
+
+```text
+Please install and configure DocuMcp for my current AI tool according to this guide:
+https://github.com/mathwro/DocuMcp/blob/main/docs/for-agents.md
+```
+
 ## Documentation
 
 | Topic | Page |
@@ -46,6 +55,7 @@ For private sources, exposing the port to your LAN, declarative source seeding v
 | `config.yaml` fields and environment variables | [docs/configuration.md](docs/configuration.md) |
 | Source types (web, GitHub Wiki, GitHub Repo, Azure DevOps) | [docs/sources.md](docs/sources.md) |
 | Connecting Claude Desktop / Claude Code, MCP tools reference | [docs/mcp-clients.md](docs/mcp-clients.md) |
+| AI assistant setup instructions | [docs/for-agents.md](docs/for-agents.md) |
 | Common problems and how to diagnose them | [docs/troubleshooting.md](docs/troubleshooting.md) |
 | Build, test, project layout | [docs/development.md](docs/development.md) |
 
