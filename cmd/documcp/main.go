@@ -81,7 +81,7 @@ func main() {
 	}
 
 	mcpServer := mcp.NewServer(store, embedder)
-	apiServer := api.NewServer(store, c, mcpServer.Handler(), key)
+	apiServer := api.NewServerWithMCPHandlers(store, c, mcpServer.Handler(), mcpServer.StreamableHTTPHandler(), key)
 
 	// Warn if no API key is configured — the API and MCP endpoints are open.
 	api.LogAPIKeyWarning()

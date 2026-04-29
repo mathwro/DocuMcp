@@ -99,3 +99,39 @@ func TestAPIKeyMiddleware_StaticFilesOpen(t *testing.T) {
 		t.Errorf("static file handler should not require auth; got 401")
 	}
 }
+
+func TestMCPTransportRoutes(t *testing.T) {
+	store := openTestStore(t)
+	sseHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("sse")) //nolint:errcheck
+	})
+	streamableHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("streamable")) //nolint:errcheck
+	})
+	srv := api.NewServerWithMCPHandlers(store, nil, sseHandler, streamableHandler, make([]byte, 32))
+
+	tests := []struct {
+		path string
+		want string
+	}{
+		{path: "/mcp/sse", want: "sse"},
+		{path: "/mcp/http", want: "streamable"},
+		{path: "/mcp/", want: "sse"},
+		{path: "/mcp", want: "streamable"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.path, func(t *testing.T) {
+			r := httptest.NewRequest(http.MethodGet, test.path, nil)
+			w := httptest.NewRecorder()
+			srv.ServeHTTP(w, r)
+
+			if w.Code != http.StatusOK {
+				t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+			}
+			if got := w.Body.String(); got != test.want {
+				t.Fatalf("expected %q, got %q", test.want, got)
+			}
+		})
+	}
+}

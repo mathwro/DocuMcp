@@ -3,6 +3,7 @@ package mcp_test
 import (
 	"context"
 	"encoding/json"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
@@ -35,6 +36,35 @@ func connectTestClient(t *testing.T, s *mcpserver.Server) *sdkmcp.ClientSession 
 	}
 	t.Cleanup(func() { cs.Close() })
 	return cs
+}
+
+func TestStreamableHTTPHandlerListsTools(t *testing.T) {
+	store := openTestDB(t)
+	srv := mcpserver.NewServer(store, nil)
+	httpSrv := httptest.NewServer(srv.StreamableHTTPHandler())
+	t.Cleanup(httpSrv.Close)
+
+	ctx := context.Background()
+	client := sdkmcp.NewClient(&sdkmcp.Implementation{Name: "test-client", Version: "0.0.1"}, nil)
+	cs, err := client.Connect(ctx, &sdkmcp.StreamableClientTransport{Endpoint: httpSrv.URL}, nil)
+	if err != nil {
+		t.Fatalf("connect streamable client: %v", err)
+	}
+	t.Cleanup(func() { cs.Close() })
+
+	res, err := cs.ListTools(ctx, &sdkmcp.ListToolsParams{})
+	if err != nil {
+		t.Fatalf("list tools: %v", err)
+	}
+	got := make(map[string]bool)
+	for _, tool := range res.Tools {
+		got[tool.Name] = true
+	}
+	for _, name := range []string{"list_sources", "search_docs", "browse_source", "get_page"} {
+		if !got[name] {
+			t.Fatalf("expected streamable handler to expose %q; got %#v", name, got)
+		}
+	}
 }
 
 func TestListSources(t *testing.T) {
