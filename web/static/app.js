@@ -1,9 +1,15 @@
+function blankSource(type = 'web') {
+  return { Name: '', Type: type, URL: '', Repo: '', Branch: '', IncludePath: '', CrawlSchedule: '' }
+}
+
 function app() {
   return {
     view: 'sources',
     sources: [],
     showAddForm: false,
-    newSource: { Name: '', Type: 'web', URL: '', Repo: '', IncludePath: '', CrawlSchedule: '' },
+    newSource: blankSource(),
+    editingSourceId: null,
+    editSource: blankSource(),
     deviceCodePending: null,
     pollInterval: null,
     refreshInterval: null,
@@ -62,10 +68,45 @@ function app() {
         })
         if (!r.ok) { alert('Failed to add source: ' + await r.text()); return }
         this.showAddForm = false
-        this.newSource = { Name: '', Type: 'web', URL: '', Repo: '', IncludePath: '', CrawlSchedule: '' }
+        this.newSource = blankSource()
         await this.loadSources()
       } catch(e) {
         console.error('addSource:', e)
+      }
+    },
+
+    startEditSource(src) {
+      this.showAddForm = false
+      this.editingSourceId = src.ID
+      this.editSource = {
+        Name: src.Name || '',
+        Type: src.Type || 'web',
+        URL: src.URL || '',
+        Repo: src.Repo || '',
+        Branch: src.Branch || '',
+        IncludePath: src.IncludePath || '',
+        CrawlSchedule: src.CrawlSchedule || ''
+      }
+    },
+
+    cancelEditSource() {
+      this.editingSourceId = null
+      this.editSource = blankSource()
+    },
+
+    async updateSource(id) {
+      const body = { ...this.editSource }
+      try {
+        const r = await fetch(`/api/sources/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        })
+        if (!r.ok) { alert('Failed to update source: ' + await r.text()); return }
+        this.cancelEditSource()
+        await this.loadSources()
+      } catch(e) {
+        console.error('updateSource:', e)
       }
     },
 
@@ -200,6 +241,18 @@ function app() {
     sourceTypeName(type) {
       const map = { web: 'Web', github_wiki: 'GitHub Wiki', github_repo: 'GitHub Repo', azure_devops: 'Azure DevOps' }
       return map[type] || type
+    },
+
+    sourceDisplayURL(src) {
+      if (!src) return ''
+      if (src.Type === 'github_wiki' && src.Repo) return `https://github.com/${src.Repo}/wiki`
+      if (src.Type === 'github_repo' && src.Repo) {
+        const branch = src.Branch || 'main'
+        const includePath = (src.IncludePath || '').replace(/^\/+|\/+$/g, '')
+        const base = `https://github.com/${src.Repo}/tree/${branch}`
+        return includePath ? `${base}/${includePath}` : base
+      }
+      return src.URL || src.BaseURL || ''
     },
 
     formatDate(ts) {

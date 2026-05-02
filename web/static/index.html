@@ -107,12 +107,56 @@
             </div>
             <div class="actions">
               <button class="secondary" @click="connectAuth(src.ID, src.Type, src.Name)" x-show="src.Type !== 'web'">Connect</button>
+              <button class="secondary" @click="startEditSource(src)" x-show="editingSourceId !== src.ID">Edit</button>
               <button class="secondary" @click="crawlNow(src.ID)" :disabled="isCrawling(src)">Crawl Now</button>
               <button class="danger" @click="deleteSource(src.ID)">Remove</button>
             </div>
           </div>
-          <div class="muted" x-show="src.LastCrawled" x-text="'Last crawled: ' + formatDate(src.LastCrawled)"></div>
-          <div class="muted" x-show="!src.LastCrawled && !isCrawling(src)">Never crawled</div>
+          <div x-show="editingSourceId === src.ID" class="source-edit-form">
+            <select x-model="editSource.Type" disabled>
+              <option value="web">Web</option>
+              <option value="github_wiki">GitHub Wiki</option>
+              <option value="github_repo">GitHub Repo</option>
+              <option value="azure_devops">Azure DevOps Wiki</option>
+            </select>
+            <input type="text" x-model="editSource.Name" placeholder="Source name" />
+            <template x-if="editSource.Type === 'web'">
+              <input type="url" x-model="editSource.URL" placeholder="https://docs.example.com" />
+            </template>
+            <template x-if="editSource.Type === 'web'">
+              <input type="url" x-model="editSource.IncludePath"
+                     placeholder="Restrict to path prefix (optional, e.g. https://docs.example.com/guide/)" />
+            </template>
+            <template x-if="editSource.Type === 'github_wiki'">
+              <input type="text" x-model="editSource.Repo" placeholder="owner/repo" />
+            </template>
+            <template x-if="editSource.Type === 'github_repo'">
+              <input type="text" x-model="editSource.Repo" placeholder="owner/repo" />
+            </template>
+            <template x-if="editSource.Type === 'github_repo'">
+              <input type="text" x-model="editSource.Branch" placeholder="Branch (default: main)" />
+            </template>
+            <template x-if="editSource.Type === 'github_repo'">
+              <input type="text" x-model="editSource.IncludePath"
+                     placeholder="Subfolder prefix (optional, e.g. docs/)" />
+            </template>
+            <template x-if="editSource.Type === 'azure_devops'">
+              <input type="url" x-model="editSource.URL" placeholder="https://dev.azure.com/org/project" />
+            </template>
+            <input type="text" x-model="editSource.CrawlSchedule" placeholder="Cron schedule (e.g. 0 2 * * *)" />
+            <div class="actions">
+              <button @click="updateSource(src.ID)">Save</button>
+              <button class="secondary" @click="cancelEditSource()">Cancel</button>
+            </div>
+          </div>
+          <div x-show="editingSourceId !== src.ID">
+            <div class="muted source-meta" x-show="sourceDisplayURL(src)">
+              <span x-text="sourceTypeName(src.Type) + ': '"></span>
+              <a :href="safeHref(sourceDisplayURL(src))" target="_blank" rel="noopener noreferrer" x-text="sourceDisplayURL(src)"></a>
+            </div>
+            <div class="muted" x-show="src.LastCrawled" x-text="'Last crawled: ' + formatDate(src.LastCrawled)"></div>
+            <div class="muted" x-show="!src.LastCrawled && !isCrawling(src)">Never crawled</div>
+          </div>
         </div>
       </template>
     </div>

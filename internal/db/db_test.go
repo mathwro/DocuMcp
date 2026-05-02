@@ -132,6 +132,68 @@ func TestDeleteSource(t *testing.T) {
 	}
 }
 
+func TestUpdateSourceConfig(t *testing.T) {
+	store := testutil.OpenStore(t)
+
+	id, err := store.InsertSource(db.Source{
+		Name:          "Original",
+		Type:          "web",
+		URL:           "https://old.example.com",
+		CrawlSchedule: "0 1 * * *",
+	})
+	if err != nil {
+		t.Fatalf("InsertSource: %v", err)
+	}
+	if err := store.UpdateSourcePageCount(id, 12); err != nil {
+		t.Fatalf("UpdateSourcePageCount: %v", err)
+	}
+
+	err = store.UpdateSourceConfig(id, db.Source{
+		Name:          "Updated",
+		Type:          "github_repo",
+		URL:           "https://new.example.com",
+		Repo:          "owner/repo",
+		Branch:        "develop",
+		IncludePath:   "docs/",
+		CrawlSchedule: "0 2 * * *",
+	})
+	if err != nil {
+		t.Fatalf("UpdateSourceConfig: %v", err)
+	}
+
+	src, err := store.GetSource(id)
+	if err != nil {
+		t.Fatalf("GetSource: %v", err)
+	}
+	if src.Name != "Updated" {
+		t.Errorf("expected name to update, got %q", src.Name)
+	}
+	if src.Type != "web" {
+		t.Errorf("expected type to remain web, got %q", src.Type)
+	}
+	if src.URL != "https://new.example.com" {
+		t.Errorf("expected URL to update, got %q", src.URL)
+	}
+	if src.Repo != "owner/repo" {
+		t.Errorf("expected repo to update, got %q", src.Repo)
+	}
+	if src.Branch != "develop" {
+		t.Errorf("expected branch to update, got %q", src.Branch)
+	}
+	if src.IncludePath != "docs/" {
+		t.Errorf("expected include path to update, got %q", src.IncludePath)
+	}
+	if src.CrawlSchedule != "0 2 * * *" {
+		t.Errorf("expected crawl schedule to update, got %q", src.CrawlSchedule)
+	}
+	if src.PageCount != 12 {
+		t.Errorf("expected page count to remain 12, got %d", src.PageCount)
+	}
+	if src.LastCrawled == nil {
+		t.Errorf("expected last crawled to remain set")
+	}
+}
+
 func TestUpdateSourcePageCount(t *testing.T) {
 	store := testutil.OpenStore(t)
 
