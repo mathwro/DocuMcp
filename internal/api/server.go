@@ -85,6 +85,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/sources", s.listSources)
 	s.mux.HandleFunc("POST /api/sources", s.createSource)
+	s.mux.HandleFunc("PUT /api/sources/{id}", s.updateSource)
 	s.mux.HandleFunc("DELETE /api/sources/{id}", s.deleteSource)
 	s.mux.HandleFunc("POST /api/sources/{id}/crawl", s.triggerCrawl)
 	s.mux.HandleFunc("GET /api/search", s.searchHandler)
@@ -144,7 +145,7 @@ func securityMiddleware(next http.Handler) http.Handler {
 			if isLoopbackOrigin(origin) {
 				h.Set("Access-Control-Allow-Origin", origin)
 				h.Set("Vary", "Origin")
-				h.Set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
+				h.Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 				h.Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
 			}
 		}

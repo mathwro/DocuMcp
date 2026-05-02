@@ -145,6 +145,54 @@ func (s *Server) createSource(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, created)
 }
 
+// updateSource handles PUT /api/sources/{id}.
+// It updates editable configuration fields while keeping the source type fixed.
+func (s *Server) updateSource(w http.ResponseWriter, r *http.Request) {
+	id, ok := parseID(w, r)
+	if !ok {
+		return
+	}
+
+	existing, err := s.store.GetSource(id)
+	if err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			writeError(w, http.StatusNotFound, "source not found")
+			return
+		}
+		internalError(w, "get source", err)
+		return
+	}
+
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+	var src db.Source
+	if err := json.NewDecoder(r.Body).Decode(&src); err != nil {
+		writeError(w, http.StatusBadRequest, fmt.Errorf("decode body: %w", err).Error())
+		return
+	}
+	src.Type = existing.Type
+
+	if err := validateSourceURLs(src); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	if err := s.store.UpdateSourceConfig(id, src); err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			writeError(w, http.StatusNotFound, "source not found")
+			return
+		}
+		internalError(w, "update source", err)
+		return
+	}
+
+	updated, err := s.store.GetSource(id)
+	if err != nil {
+		internalError(w, "get source after update", err)
+		return
+	}
+	writeJSON(w, http.StatusOK, updated)
+}
+
 // deleteSource handles DELETE /api/sources/{id}.
 // Deletes the source (and its pages via cascade) and returns 204 No Content.
 func (s *Server) deleteSource(w http.ResponseWriter, r *http.Request) {

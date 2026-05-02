@@ -158,6 +158,28 @@ func (s *Store) DeleteSource(id int64) error {
 	return nil
 }
 
+// UpdateSourceConfig updates editable source configuration fields.
+// It intentionally leaves type, auth, crawl progress, and timestamps unchanged.
+func (s *Store) UpdateSourceConfig(id int64, src Source) error {
+	res, err := s.db.Exec(
+		`UPDATE sources
+		 SET name = ?, url = ?, repo = ?, branch = ?, base_url = ?, space_key = ?, crawl_schedule = ?, include_path = ?
+		 WHERE id = ?`,
+		src.Name, src.URL, src.Repo, src.Branch, src.BaseURL, src.SpaceKey, src.CrawlSchedule, src.IncludePath, id,
+	)
+	if err != nil {
+		return fmt.Errorf("update source config %d: %w", id, err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("update source config %d rows affected: %w", id, err)
+	}
+	if n == 0 {
+		return fmt.Errorf("source %d: %w", id, ErrNotFound)
+	}
+	return nil
+}
+
 // UpdateSourcePageCount updates the page_count for a source.
 func (s *Store) UpdateSourcePageCount(id int64, count int) error {
 	_, err := s.db.Exec(

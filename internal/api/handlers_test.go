@@ -221,6 +221,99 @@ func TestDeleteSource_BadID(t *testing.T) {
 	}
 }
 
+func TestUpdateSource(t *testing.T) {
+	store := openTestStore(t)
+	id, err := store.InsertSource(db.Source{
+		Name:          "Old Docs",
+		Type:          "web",
+		URL:           "https://old.example.com",
+		CrawlSchedule: "0 1 * * *",
+	})
+	if err != nil {
+		t.Fatalf("InsertSource: %v", err)
+	}
+	if err := store.UpdateSourcePageCount(id, 7); err != nil {
+		t.Fatalf("UpdateSourcePageCount: %v", err)
+	}
+
+	srv := api.NewServer(store, nil, nil, make([]byte, 32))
+	body, err := json.Marshal(db.Source{
+		Name:          "New Docs",
+		Type:          "github_repo",
+		URL:           "https://new.example.com",
+		IncludePath:   "https://new.example.com/guide/",
+		CrawlSchedule: "0 2 * * *",
+	})
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	r := httptest.NewRequest(http.MethodPut, "/api/sources/"+itoa(id), bytes.NewReader(body))
+	r.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, r)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	var updated db.Source
+	if err := json.NewDecoder(w.Body).Decode(&updated); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if updated.Name != "New Docs" {
+		t.Errorf("expected updated name, got %q", updated.Name)
+	}
+	if updated.Type != "web" {
+		t.Errorf("expected type to remain web, got %q", updated.Type)
+	}
+	if updated.URL != "https://new.example.com" {
+		t.Errorf("expected updated URL, got %q", updated.URL)
+	}
+	if updated.IncludePath != "https://new.example.com/guide/" {
+		t.Errorf("expected updated include path, got %q", updated.IncludePath)
+	}
+	if updated.CrawlSchedule != "0 2 * * *" {
+		t.Errorf("expected updated crawl schedule, got %q", updated.CrawlSchedule)
+	}
+	if updated.PageCount != 7 {
+		t.Errorf("expected page count to remain 7, got %d", updated.PageCount)
+	}
+	if updated.LastCrawled == nil {
+		t.Errorf("expected last crawled to remain set")
+	}
+}
+
+func TestUpdateSource_NotFound(t *testing.T) {
+	store := openTestStore(t)
+	srv := api.NewServer(store, nil, nil, make([]byte, 32))
+	body, _ := json.Marshal(db.Source{Name: "Missing", Type: "web", URL: "https://example.com"})
+
+	r := httptest.NewRequest(http.MethodPut, "/api/sources/9999", bytes.NewReader(body))
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, r)
+
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestUpdateSource_RejectsDangerousSchemes(t *testing.T) {
+	store := openTestStore(t)
+	id, err := store.InsertSource(db.Source{Name: "Docs", Type: "web", URL: "https://example.com"})
+	if err != nil {
+		t.Fatalf("InsertSource: %v", err)
+	}
+	srv := api.NewServer(store, nil, nil, make([]byte, 32))
+	body, _ := json.Marshal(db.Source{Name: "Docs", Type: "web", URL: "javascript:alert(1)"})
+
+	r := httptest.NewRequest(http.MethodPut, "/api/sources/"+itoa(id), bytes.NewReader(body))
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, r)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
 func TestTriggerCrawl_SourceNotFound(t *testing.T) {
 	store := openTestStore(t)
 	srv := api.NewServer(store, nil, nil, make([]byte, 32))
