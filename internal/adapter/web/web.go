@@ -56,16 +56,9 @@ func (a *WebAdapter) Crawl(ctx context.Context, src config.SourceConfig, sourceI
 	filterPaths := []string{strings.TrimRight(base.Path, "/") + "/"}
 	includePaths := sourcepaths.Normalize(src.IncludePath, src.IncludePaths)
 	if len(includePaths) > 0 {
-		filterPaths = make([]string, 0, len(includePaths))
-		for _, includePath := range includePaths {
-			includeParsed, parseErr := url.Parse(includePath)
-			if parseErr != nil {
-				return 0, nil, fmt.Errorf("web adapter: parse include_path: %w", parseErr)
-			}
-			if !sameOrigin(includeParsed, base) {
-				return 0, nil, fmt.Errorf("web adapter: include_path %q must share origin with source URL %q", includePath, src.URL)
-			}
-			filterPaths = append(filterPaths, strings.TrimRight(includeParsed.Path, "/")+"/")
+		filterPaths, err = webIncludePathFilterPaths(base, includePaths)
+		if err != nil {
+			return 0, nil, err
 		}
 	}
 
@@ -263,6 +256,27 @@ func filterURLAny(ctx context.Context, u *url.URL, base *url.URL, filterPaths []
 		}
 	}
 	return false
+}
+
+func webIncludePathFilterPaths(base *url.URL, includePaths []string) ([]string, error) {
+	filterPaths := make([]string, 0, len(includePaths))
+	for _, includePath := range includePaths {
+		includeParsed, parseErr := url.Parse(includePath)
+		if parseErr != nil {
+			return nil, fmt.Errorf("web adapter: parse include_path: %w", parseErr)
+		}
+		if includeParsed.IsAbs() {
+			if !sameOrigin(includeParsed, base) {
+				return nil, fmt.Errorf("web adapter: include_path %q must share origin with source URL %q", includePath, base.String())
+			}
+		} else if includeParsed.Host != "" {
+			return nil, fmt.Errorf("web adapter: include_path %q must be a relative path or share origin with source URL %q", includePath, base.String())
+		} else {
+			includeParsed = base.ResolveReference(includeParsed)
+		}
+		filterPaths = append(filterPaths, strings.TrimRight(includeParsed.Path, "/")+"/")
+	}
+	return filterPaths, nil
 }
 
 // isAllowedHost delegates to httpsafe.AllowedHost.

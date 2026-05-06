@@ -16,7 +16,7 @@ Provide a `config.yaml` when you want to declare sources and crawl schedules in 
 | `sources[].type` | `web`, `github_wiki`, `github_repo`, or `azure_devops` |
 | `sources[].url` | Base URL (web and Azure DevOps sources) |
 | `sources[].include_path` | Legacy single path filter. Prefer `include_paths` for new config. |
-| `sources[].include_paths` | For `web`: only same-origin URLs under these prefixes are indexed. For `github_repo`: only files under these repository folders are indexed. Empty means the current whole-source behavior. |
+| `sources[].include_paths` | For `web`: only same-origin URLs under these prefixes are indexed. Entries may be relative paths such as `/guides/` or full same-origin URLs. For `github_repo`: only files under these repository folders are indexed. Empty means the current whole-source behavior. |
 | `sources[].repo` | `owner/repo` (GitHub Wiki and GitHub Repo sources) |
 | `sources[].branch` | Branch name for `github_repo` sources (default: `main`) |
 | `sources[].crawl_schedule` | Cron expression, e.g. `0 2 * * *` or `@weekly` |

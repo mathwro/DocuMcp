@@ -8,8 +8,8 @@ sources:
   #   type: web
   #   url: https://argo-cd.readthedocs.io/en/stable/
   #   include_paths:
-  #     - https://argo-cd.readthedocs.io/en/stable/operator-manual/
-  #     - https://argo-cd.readthedocs.io/en/stable/user-guide/
+  #     - operator-manual/
+  #     - user-guide/
   #   crawl_schedule: "@weekly"
 
   # GitHub wiki (public or with a fine-grained PAT for private):

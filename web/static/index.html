@@ -51,7 +51,7 @@
             <p class="muted" x-text="includePathHelp(newSource.Type)"></p>
             <template x-for="(_, index) in newSource.IncludePaths" :key="index">
               <div class="path-row">
-                <input :type="newSource.Type === 'web' ? 'url' : 'text'"
+                <input type="text"
                        x-model="newSource.IncludePaths[index]"
                        :placeholder="includePathPlaceholder(newSource.Type)" />
                 <button type="button" class="secondary" @click="removeIncludePathRow(newSource, index)">Remove</button>
@@ -145,7 +145,7 @@
                 <p class="muted" x-text="includePathHelp(editSource.Type)"></p>
                 <template x-for="(_, index) in editSource.IncludePaths" :key="index">
                   <div class="path-row">
-                    <input :type="editSource.Type === 'web' ? 'url' : 'text'"
+                    <input type="text"
                            x-model="editSource.IncludePaths[index]"
                            :placeholder="includePathPlaceholder(editSource.Type)" />
                     <button type="button" class="secondary" @click="removeIncludePathRow(editSource, index)">Remove</button>

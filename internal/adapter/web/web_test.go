@@ -49,6 +49,23 @@ func TestCrawl_IncludePath_CrossOrigin(t *testing.T) {
 	}
 }
 
+func TestWebIncludePathFilterPaths_ResolvesRelativePaths(t *testing.T) {
+	base := mustParseURL("https://docs.example.com/docs/")
+	got, err := webIncludePathFilterPaths(base, []string{"guides/", "/reference/"})
+	if err != nil {
+		t.Fatalf("webIncludePathFilterPaths: %v", err)
+	}
+	want := []string{"/docs/guides/", "/reference/"}
+	if len(got) != len(want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("got %v, want %v", got, want)
+		}
+	}
+}
+
 func TestFilterURL_IncludePathFiltersCorrectly(t *testing.T) {
 	withLookup(t, map[string][]net.IP{
 		"docs.example.com": {net.ParseIP("1.2.3.4")},

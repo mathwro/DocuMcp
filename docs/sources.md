@@ -11,12 +11,12 @@ Crawls public websites. Discovers pages via sitemap, falls back to link followin
   type: web
   url: https://argo-cd.readthedocs.io/en/stable/
   include_paths:
-    - https://argo-cd.readthedocs.io/en/stable/operator-manual/
-    - https://argo-cd.readthedocs.io/en/stable/user-guide/
+    - operator-manual/
+    - user-guide/
   crawl_schedule: "@weekly"
 ```
 
-`include_paths` is a filter: only matching pages are indexed. It does not add extra crawl roots.
+`include_paths` is a filter: only matching pages are indexed. It does not add extra crawl roots. For web sources, entries can be relative to `url` (`operator-manual/`), root-relative (`/en/stable/operator-manual/`), or full same-origin URLs.
 
 ## GitHub Wiki (`type: github_wiki`)
 

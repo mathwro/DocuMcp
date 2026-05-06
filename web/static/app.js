@@ -256,12 +256,12 @@ function app() {
     },
 
     includePathPlaceholder(type) {
-      return type === 'github_repo' ? 'docs/' : 'https://docs.example.com/guides/'
+      return type === 'github_repo' ? 'docs/' : '/guides/'
     },
 
     includePathHelp(type) {
       if (type === 'github_repo') return 'Only files under these repository folders will be indexed. Leave empty to index the whole repo.'
-      return 'Only same-site URLs under these prefixes will be indexed. Leave empty to use the source URL path.'
+      return 'Only same-site URLs under these path prefixes will be indexed. Use paths like /guides/ or guides/; full same-site URLs also work. Leave empty to use the source URL path.'
     },
 
     ensureIncludePathRow(src) {
