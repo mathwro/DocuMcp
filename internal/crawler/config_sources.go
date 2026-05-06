@@ -31,5 +31,6 @@ func configSourceToDB(src config.SourceConfig) db.Source {
 		CrawlSchedule: src.CrawlSchedule,
 		IncludePath:   src.IncludePath,
 		IncludePaths:  src.IncludePaths,
+		Origin:        db.SourceOriginConfig,
 	}
 }

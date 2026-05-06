@@ -1,6 +1,6 @@
 # Source Types
 
-DocuMcp supports four source adapters. Each is configured as an entry under `sources:` in `config.yaml`, or added through the Web UI.
+DocuMcp supports four source adapters. Each is configured as an entry under `sources:` in `config.yaml`, or added through the Web UI. The source list shows whether each source came from `config.yaml` or the UI. Use **Export YAML** in the Web UI to generate a portable `sources:` block from the current database state.
 
 ## Web (`type: web`)
 

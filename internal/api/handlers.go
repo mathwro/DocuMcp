@@ -13,9 +13,11 @@ import (
 	"time"
 
 	"github.com/mathwro/DocuMcp/internal/auth"
+	"github.com/mathwro/DocuMcp/internal/config"
 	"github.com/mathwro/DocuMcp/internal/db"
 	"github.com/mathwro/DocuMcp/internal/search"
 	"github.com/mathwro/DocuMcp/internal/sourcepaths"
+	"gopkg.in/yaml.v3"
 )
 
 // writeJSON writes v as JSON to w with the given status code.
@@ -117,6 +119,50 @@ func (s *Server) listSources(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, result)
 }
 
+type sourcesExport struct {
+	Sources []config.SourceConfig `yaml:"sources"`
+}
+
+func sourceConfigForExport(src db.Source) config.SourceConfig {
+	return config.SourceConfig{
+		Name:          src.Name,
+		Type:          src.Type,
+		Repo:          src.Repo,
+		Branch:        src.Branch,
+		URL:           src.URL,
+		BaseURL:       src.BaseURL,
+		SpaceKey:      src.SpaceKey,
+		CrawlSchedule: src.CrawlSchedule,
+		IncludePaths:  sourcepaths.Normalize(src.IncludePath, src.IncludePaths),
+	}
+}
+
+// exportSources handles GET /api/sources/export.
+// It emits portable YAML for source configuration only, excluding auth secrets
+// and runtime crawl state.
+func (s *Server) exportSources(w http.ResponseWriter, r *http.Request) {
+	sources, err := s.store.ListSources()
+	if err != nil {
+		internalError(w, "export sources", err)
+		return
+	}
+	out := sourcesExport{Sources: make([]config.SourceConfig, 0, len(sources))}
+	for _, src := range sources {
+		out.Sources = append(out.Sources, sourceConfigForExport(src))
+	}
+	data, err := yaml.Marshal(out)
+	if err != nil {
+		internalError(w, "marshal sources export", err)
+		return
+	}
+	w.Header().Set("Content-Type", "application/x-yaml; charset=utf-8")
+	w.Header().Set("Content-Disposition", `attachment; filename="documcp-sources.yaml"`)
+	w.WriteHeader(http.StatusOK)
+	if _, err := w.Write(data); err != nil {
+		slog.Error("write sources export", "err", err)
+	}
+}
+
 // createSource handles POST /api/sources.
 // Decodes a db.Source from the request body, inserts it, and returns 201 with the created source.
 func (s *Server) createSource(w http.ResponseWriter, r *http.Request) {
@@ -133,6 +179,7 @@ func (s *Server) createSource(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	src.Origin = db.SourceOriginUI
 
 	id, err := s.store.InsertSource(src)
 	if err != nil {

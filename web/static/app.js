@@ -127,6 +127,24 @@ function app() {
       await this.loadSources()
     },
 
+    async exportSources() {
+      try {
+        const r = await fetch('/api/sources/export')
+        if (!r.ok) { alert('Failed to export sources: ' + await r.text()); return }
+        const blob = await r.blob()
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = 'documcp-sources.yaml'
+        document.body.appendChild(a)
+        a.click()
+        a.remove()
+        URL.revokeObjectURL(url)
+      } catch(e) {
+        console.error('exportSources:', e)
+      }
+    },
+
     async connectAuth(id, sourceType, sourceName) {
       // GitHub sources use a user-supplied fine-grained PAT.
       if (sourceType === 'github_wiki' || sourceType === 'github_repo') {
@@ -253,6 +271,10 @@ function app() {
     sourceTypeName(type) {
       const map = { web: 'Web', github_wiki: 'GitHub Wiki', github_repo: 'GitHub Repo', azure_devops: 'Azure DevOps' }
       return map[type] || type
+    },
+
+    sourceOriginName(origin) {
+      return origin === 'config' ? 'Config' : 'UI'
     },
 
     includePathPlaceholder(type) {
