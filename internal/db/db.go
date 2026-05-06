@@ -247,6 +247,43 @@ func (s *Store) UpdateSourceConfig(id int64, src Source) error {
 	return nil
 }
 
+// UpsertSourceConfigByName inserts or updates a source declared in config.yaml.
+// It preserves crawl progress and timestamps for existing sources with the same name.
+func (s *Store) UpsertSourceConfigByName(src Source) (int64, error) {
+	id, err := s.GetSourceIDByName(src.Name)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return s.InsertSource(src)
+		}
+		return 0, fmt.Errorf("lookup config source %q: %w", src.Name, err)
+	}
+
+	paths := sourceIncludePaths(src)
+	pathsJSON, err := encodeIncludePaths(paths)
+	if err != nil {
+		return 0, fmt.Errorf("upsert config source %q include paths: %w", src.Name, err)
+	}
+	legacyPath := sourcepaths.First(paths)
+
+	res, err := s.db.Exec(
+		`UPDATE sources
+		 SET type = ?, url = ?, repo = ?, branch = ?, base_url = ?, space_key = ?, auth = ?, crawl_schedule = ?, include_path = ?, include_paths = ?
+		 WHERE id = ?`,
+		src.Type, src.URL, src.Repo, src.Branch, src.BaseURL, src.SpaceKey, src.Auth, src.CrawlSchedule, legacyPath, pathsJSON, id,
+	)
+	if err != nil {
+		return 0, fmt.Errorf("upsert config source %q: %w", src.Name, err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("upsert config source %q rows affected: %w", src.Name, err)
+	}
+	if n == 0 {
+		return 0, fmt.Errorf("source %d: %w", id, ErrNotFound)
+	}
+	return id, nil
+}
+
 // UpdateSourcePageCount updates the page_count for a source.
 func (s *Store) UpdateSourcePageCount(id int64, count int) error {
 	_, err := s.db.Exec(
