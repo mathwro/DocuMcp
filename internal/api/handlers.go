@@ -15,6 +15,7 @@ import (
 	"github.com/mathwro/DocuMcp/internal/auth"
 	"github.com/mathwro/DocuMcp/internal/db"
 	"github.com/mathwro/DocuMcp/internal/search"
+	"github.com/mathwro/DocuMcp/internal/sourcepaths"
 )
 
 // writeJSON writes v as JSON to w with the given status code.
@@ -69,11 +70,13 @@ func validateSourceURLs(src db.Source) error {
 			return err
 		}
 	}
-	if src.IncludePath != "" && strings.Contains(src.IncludePath, "://") {
-		// IncludePath is a URL for web sources; for github_repo it's a bare subpath.
-		// If it looks like a URL, validate the scheme.
-		if err := validateHTTPURL(src.IncludePath, "include_path"); err != nil {
-			return err
+	for _, includePath := range sourcepaths.Normalize(src.IncludePath, src.IncludePaths) {
+		if strings.Contains(includePath, "://") {
+			// Include paths are URLs for web sources; for github_repo they're bare subpaths.
+			// If a value looks like a URL, validate the scheme.
+			if err := validateHTTPURL(includePath, "include_paths"); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
