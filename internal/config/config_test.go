@@ -3,6 +3,7 @@ package config_test
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 
 	"github.com/mathwro/DocuMcp/internal/config"
@@ -101,5 +102,34 @@ func TestLoadOrDefault_ParseError(t *testing.T) {
 	_, err := config.LoadOrDefault(path)
 	if err == nil {
 		t.Fatal("expected parse error, got nil")
+	}
+}
+
+func TestLoadConfig_IncludePaths(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "include-paths.yaml")
+	data := []byte(`sources:
+  - name: Docs
+    type: web
+    url: https://docs.example.com/
+    include_path: https://docs.example.com/legacy/
+    include_paths:
+      - https://docs.example.com/guides/
+      - https://docs.example.com/reference/
+`)
+	if err := os.WriteFile(path, data, 0644); err != nil {
+		t.Fatalf("write temp config: %v", err)
+	}
+	cfg, err := config.Load(path)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	src := cfg.Sources[0]
+	if src.IncludePath != "https://docs.example.com/legacy/" {
+		t.Fatalf("IncludePath = %q", src.IncludePath)
+	}
+	want := []string{"https://docs.example.com/guides/", "https://docs.example.com/reference/"}
+	if !reflect.DeepEqual(src.IncludePaths, want) {
+		t.Fatalf("IncludePaths = %#v, want %#v", src.IncludePaths, want)
 	}
 }

@@ -26,9 +26,10 @@ type SourceConfig struct {
 	Repo   string `yaml:"repo,omitempty"`
 	Branch string `yaml:"branch,omitempty"`
 	// web
-	URL         string `yaml:"url,omitempty"`
-	IncludePath string `yaml:"include_path,omitempty"`
-	Auth        string `yaml:"auth,omitempty"`
+	URL          string   `yaml:"url,omitempty"`
+	IncludePath  string   `yaml:"include_path,omitempty"`
+	IncludePaths []string `yaml:"include_paths,omitempty"`
+	Auth         string   `yaml:"auth,omitempty"`
 	// confluence
 	BaseURL  string `yaml:"base_url,omitempty"`
 	SpaceKey string `yaml:"space_key,omitempty"`
