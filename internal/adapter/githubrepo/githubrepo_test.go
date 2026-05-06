@@ -175,12 +175,12 @@ func TestCrawl_IncludePath_ScopedToSubfolder(t *testing.T) {
 
 func TestCrawl_IncludePaths_ScopedToMultipleSubfolders(t *testing.T) {
 	tarball := buildTarball(t, "owner-repo-abc123", map[string][]byte{
-		"README.md":              []byte("# Root\n"),
-		"docs/guide.md":          []byte("# Guide\n"),
-		"help/tests/writing.md":  []byte("# Writing Tests\n"),
-		"help/tests/running.md":  []byte("# Running Tests\n"),
-		"help/release/notes.md":  []byte("# Release Notes\n"),
-		"internal/notes.md":      []byte("# Internal\n"),
+		"README.md":             []byte("# Root\n"),
+		"docs/guide.md":         []byte("# Guide\n"),
+		"help/tests/writing.md": []byte("# Writing Tests\n"),
+		"help/tests/running.md": []byte("# Running Tests\n"),
+		"help/release/notes.md": []byte("# Release Notes\n"),
+		"internal/notes.md":     []byte("# Internal\n"),
 	})
 	srv := tarballServer(t, tarball)
 	includePaths := []string{"docs/", "help/tests/"}
