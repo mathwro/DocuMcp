@@ -10,9 +10,13 @@ Crawls public websites. Discovers pages via sitemap, falls back to link followin
 - name: ArgoCD Operator Manual
   type: web
   url: https://argo-cd.readthedocs.io/en/stable/
-  include_path: https://argo-cd.readthedocs.io/en/stable/operator-manual/
+  include_paths:
+    - https://argo-cd.readthedocs.io/en/stable/operator-manual/
+    - https://argo-cd.readthedocs.io/en/stable/user-guide/
   crawl_schedule: "@weekly"
 ```
+
+`include_paths` is a filter: only matching pages are indexed. It does not add extra crawl roots.
 
 ## GitHub Wiki (`type: github_wiki`)
 
@@ -27,16 +31,20 @@ Indexes a GitHub repository's wiki. Public wikis work without authentication. Fo
 
 ## GitHub Repo (`type: github_repo`)
 
-Indexes Markdown (`.md`, `.mdx`) and text (`.txt`) files directly from a repository's tree via the GitHub tarball endpoint. Files larger than 5 MiB are skipped. Use `include_path` to restrict indexing to a subfolder such as `docs/`.
+Indexes Markdown (`.md`, `.mdx`) and text (`.txt`) files directly from a repository's tree via the GitHub tarball endpoint. Files larger than 5 MiB are skipped. Use `include_paths` to restrict indexing to repository folders such as `docs/` and `help/tests/`.
 
 ```yaml
 - name: My Project Docs
   type: github_repo
   repo: owner/repo
   branch: main
-  include_path: docs/
+  include_paths:
+    - docs/
+    - help/tests/
   crawl_schedule: "@daily"
 ```
+
+`include_paths` is a filter: only matching files are indexed. It does not add extra repositories or branches.
 
 Public repos work without authentication. For private repos, click **Connect** in the Web UI and paste a [fine-grained PAT](https://github.com/settings/personal-access-tokens/new) with **Contents: Read-only** on the target repo.
 

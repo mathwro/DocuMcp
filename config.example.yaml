@@ -7,7 +7,9 @@ sources:
   # - name: ArgoCD Operator Manual
   #   type: web
   #   url: https://argo-cd.readthedocs.io/en/stable/
-  #   include_path: https://argo-cd.readthedocs.io/en/stable/operator-manual/
+  #   include_paths:
+  #     - https://argo-cd.readthedocs.io/en/stable/operator-manual/
+  #     - https://argo-cd.readthedocs.io/en/stable/user-guide/
   #   crawl_schedule: "@weekly"
 
   # GitHub wiki (public or with a fine-grained PAT for private):
@@ -21,7 +23,9 @@ sources:
   #   type: github_repo
   #   repo: owner/repo
   #   branch: main
-  #   include_path: docs/
+  #   include_paths:
+  #     - docs/
+  #     - help/tests/
   #   crawl_schedule: "@daily"
 
   # Azure DevOps wiki (Microsoft device code flow):
