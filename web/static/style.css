@@ -67,11 +67,17 @@ h2 { font-size: 1.1rem; font-weight: 600; }
 .path-row {
   display: flex;
   gap: 0.5rem;
-  align-items: center;
+  align-items: flex-start;
+  margin-bottom: 0.75rem;
 }
 
 .path-row input {
   flex: 1;
+  margin-bottom: 0;
+}
+
+.path-row button {
+  flex: 0 0 auto;
 }
 
 .device-code-box { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 1rem; margin-top: 1rem; }
