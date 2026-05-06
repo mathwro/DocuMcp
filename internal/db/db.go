@@ -11,6 +11,8 @@ import (
 
 	vec "github.com/asg017/sqlite-vec-go-bindings/cgo"
 	_ "github.com/mattn/go-sqlite3"
+
+	"github.com/mathwro/DocuMcp/internal/sourcepaths"
 )
 
 func init() {
@@ -41,6 +43,7 @@ type Source struct {
 	PageCount     int
 	CrawlTotal    int
 	IncludePath   string
+	IncludePaths  []string
 }
 
 // Page represents an indexed documentation page.
@@ -51,6 +54,47 @@ type Page struct {
 	Title    string
 	Content  string
 	Path     []string
+}
+
+func sourceIncludePaths(src Source) []string {
+	return sourcepaths.Normalize(src.IncludePath, src.IncludePaths)
+}
+
+func encodeIncludePaths(paths []string) (string, error) {
+	if paths == nil {
+		paths = []string{}
+	}
+	data, err := json.Marshal(paths)
+	if err != nil {
+		return "", fmt.Errorf("marshal include_paths: %w", err)
+	}
+	return string(data), nil
+}
+
+func decodeIncludePaths(raw string) ([]string, error) {
+	if raw == "" {
+		return []string{}, nil
+	}
+	var paths []string
+	if err := json.Unmarshal([]byte(raw), &paths); err != nil {
+		return nil, fmt.Errorf("unmarshal include_paths: %w", err)
+	}
+	if paths == nil {
+		paths = []string{}
+	}
+	return paths, nil
+}
+
+func hydrateIncludePaths(src *Source, raw string) error {
+	paths, err := decodeIncludePaths(raw)
+	if err != nil {
+		return err
+	}
+	src.IncludePaths = sourcepaths.Normalize(src.IncludePath, paths)
+	if src.IncludePath == "" {
+		src.IncludePath = sourcepaths.First(src.IncludePaths)
+	}
+	return nil
 }
 
 // Open opens (or creates) a SQLite database at dsn and applies the schema.
@@ -69,6 +113,7 @@ func Open(dsn string) (*Store, error) {
 	// Migrations for columns added after initial release.
 	_, _ = db.Exec(`ALTER TABLE sources ADD COLUMN crawl_total INTEGER NOT NULL DEFAULT 0`)
 	_, _ = db.Exec(`ALTER TABLE sources ADD COLUMN include_path TEXT NOT NULL DEFAULT ''`)
+	_, _ = db.Exec(`ALTER TABLE sources ADD COLUMN include_paths TEXT NOT NULL DEFAULT '[]'`)
 	_, _ = db.Exec(`ALTER TABLE sources ADD COLUMN branch TEXT NOT NULL DEFAULT ''`)
 	return &Store{db: db}, nil
 }
@@ -81,10 +126,17 @@ func (s *Store) DB() *sql.DB { return s.db }
 
 // InsertSource inserts a new source and returns its ID.
 func (s *Store) InsertSource(src Source) (int64, error) {
+	paths := sourceIncludePaths(src)
+	pathsJSON, err := encodeIncludePaths(paths)
+	if err != nil {
+		return 0, err
+	}
+	legacyPath := sourcepaths.First(paths)
+
 	res, err := s.db.Exec(
-		`INSERT INTO sources (name, type, url, repo, branch, base_url, space_key, auth, crawl_schedule, include_path)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		src.Name, src.Type, src.URL, src.Repo, src.Branch, src.BaseURL, src.SpaceKey, src.Auth, src.CrawlSchedule, src.IncludePath,
+		`INSERT INTO sources (name, type, url, repo, branch, base_url, space_key, auth, crawl_schedule, include_path, include_paths)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		src.Name, src.Type, src.URL, src.Repo, src.Branch, src.BaseURL, src.SpaceKey, src.Auth, src.CrawlSchedule, legacyPath, pathsJSON,
 	)
 	if err != nil {
 		return 0, fmt.Errorf("insert source: %w", err)
@@ -95,7 +147,7 @@ func (s *Store) InsertSource(src Source) (int64, error) {
 // ListSources returns all configured sources.
 func (s *Store) ListSources() ([]Source, error) {
 	rows, err := s.db.Query(
-		`SELECT id, name, type, url, repo, branch, base_url, space_key, auth, crawl_schedule, page_count, last_crawled, crawl_total, include_path
+		`SELECT id, name, type, url, repo, branch, base_url, space_key, auth, crawl_schedule, page_count, last_crawled, crawl_total, include_path, include_paths
 		 FROM sources ORDER BY id`,
 	)
 	if err != nil {
@@ -106,11 +158,15 @@ func (s *Store) ListSources() ([]Source, error) {
 	sources := make([]Source, 0)
 	for rows.Next() {
 		var src Source
+		var includePathsJSON string
 		if err := rows.Scan(
 			&src.ID, &src.Name, &src.Type, &src.URL, &src.Repo, &src.Branch,
-			&src.BaseURL, &src.SpaceKey, &src.Auth, &src.CrawlSchedule, &src.PageCount, &src.LastCrawled, &src.CrawlTotal, &src.IncludePath,
+			&src.BaseURL, &src.SpaceKey, &src.Auth, &src.CrawlSchedule, &src.PageCount, &src.LastCrawled, &src.CrawlTotal, &src.IncludePath, &includePathsJSON,
 		); err != nil {
 			return nil, fmt.Errorf("scan source: %w", err)
+		}
+		if err := hydrateIncludePaths(&src, includePathsJSON); err != nil {
+			return nil, fmt.Errorf("list sources include paths: %w", err)
 		}
 		sources = append(sources, src)
 	}
@@ -120,18 +176,22 @@ func (s *Store) ListSources() ([]Source, error) {
 // GetSource returns a single source by ID.
 func (s *Store) GetSource(id int64) (*Source, error) {
 	var src Source
+	var includePathsJSON string
 	err := s.db.QueryRow(
-		`SELECT id, name, type, url, repo, branch, base_url, space_key, auth, crawl_schedule, page_count, last_crawled, crawl_total, include_path
+		`SELECT id, name, type, url, repo, branch, base_url, space_key, auth, crawl_schedule, page_count, last_crawled, crawl_total, include_path, include_paths
 		 FROM sources WHERE id = ?`, id,
 	).Scan(
 		&src.ID, &src.Name, &src.Type, &src.URL, &src.Repo, &src.Branch,
-		&src.BaseURL, &src.SpaceKey, &src.Auth, &src.CrawlSchedule, &src.PageCount, &src.LastCrawled, &src.CrawlTotal, &src.IncludePath,
+		&src.BaseURL, &src.SpaceKey, &src.Auth, &src.CrawlSchedule, &src.PageCount, &src.LastCrawled, &src.CrawlTotal, &src.IncludePath, &includePathsJSON,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, fmt.Errorf("source %d: %w", id, ErrNotFound)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("get source %d: %w", id, err)
+	}
+	if err := hydrateIncludePaths(&src, includePathsJSON); err != nil {
+		return nil, fmt.Errorf("get source %d include paths: %w", id, err)
 	}
 	return &src, nil
 }
@@ -161,11 +221,18 @@ func (s *Store) DeleteSource(id int64) error {
 // UpdateSourceConfig updates editable source configuration fields.
 // It intentionally leaves type, auth, crawl progress, and timestamps unchanged.
 func (s *Store) UpdateSourceConfig(id int64, src Source) error {
+	paths := sourceIncludePaths(src)
+	pathsJSON, err := encodeIncludePaths(paths)
+	if err != nil {
+		return fmt.Errorf("update source config %d include paths: %w", id, err)
+	}
+	legacyPath := sourcepaths.First(paths)
+
 	res, err := s.db.Exec(
 		`UPDATE sources
-		 SET name = ?, url = ?, repo = ?, branch = ?, base_url = ?, space_key = ?, crawl_schedule = ?, include_path = ?
+		 SET name = ?, url = ?, repo = ?, branch = ?, base_url = ?, space_key = ?, crawl_schedule = ?, include_path = ?, include_paths = ?
 		 WHERE id = ?`,
-		src.Name, src.URL, src.Repo, src.Branch, src.BaseURL, src.SpaceKey, src.CrawlSchedule, src.IncludePath, id,
+		src.Name, src.URL, src.Repo, src.Branch, src.BaseURL, src.SpaceKey, src.CrawlSchedule, legacyPath, pathsJSON, id,
 	)
 	if err != nil {
 		return fmt.Errorf("update source config %d: %w", id, err)

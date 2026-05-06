@@ -3,6 +3,7 @@ package db_test
 import (
 	"encoding/json"
 	"errors"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -341,5 +342,51 @@ func TestInsertSource_github_repo_persists_branch(t *testing.T) {
 	}
 	if got.IncludePath != "docs/" {
 		t.Errorf("IncludePath: got %q, want %q", got.IncludePath, "docs/")
+	}
+}
+
+func TestInsertSource_PersistsIncludePaths(t *testing.T) {
+	store := testutil.OpenStore(t)
+
+	id, err := store.InsertSource(db.Source{
+		Name:         "Docs",
+		Type:         "web",
+		URL:          "https://docs.example.com",
+		IncludePaths: []string{"https://docs.example.com/guides/", "https://docs.example.com/reference/"},
+	})
+	if err != nil {
+		t.Fatalf("InsertSource: %v", err)
+	}
+	got, err := store.GetSource(id)
+	if err != nil {
+		t.Fatalf("GetSource: %v", err)
+	}
+	want := []string{"https://docs.example.com/guides/", "https://docs.example.com/reference/"}
+	if !reflect.DeepEqual(got.IncludePaths, want) {
+		t.Fatalf("IncludePaths = %#v, want %#v", got.IncludePaths, want)
+	}
+	if got.IncludePath != want[0] {
+		t.Fatalf("IncludePath = %q, want first path %q", got.IncludePath, want[0])
+	}
+}
+
+func TestInsertSource_LegacyIncludePathPopulatesIncludePaths(t *testing.T) {
+	store := testutil.OpenStore(t)
+
+	id, err := store.InsertSource(db.Source{
+		Name:        "Docs",
+		Type:        "github_repo",
+		Repo:        "owner/repo",
+		IncludePath: "docs/",
+	})
+	if err != nil {
+		t.Fatalf("InsertSource: %v", err)
+	}
+	got, err := store.GetSource(id)
+	if err != nil {
+		t.Fatalf("GetSource: %v", err)
+	}
+	if !reflect.DeepEqual(got.IncludePaths, []string{"docs/"}) {
+		t.Fatalf("IncludePaths = %#v, want [docs/]", got.IncludePaths)
 	}
 }
