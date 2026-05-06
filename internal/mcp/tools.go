@@ -20,28 +20,30 @@ import (
 //   - BaseURL, SpaceKey: adapter-internal identifiers (URL already identifies the source)
 //   - CrawlSchedule: internal scheduling detail (LastCrawled gives staleness info)
 type sourceInfo struct {
-	ID          int64      `json:"id"`
-	Name        string     `json:"name"`
-	Type        string     `json:"type"`
-	URL         string     `json:"url"`
-	Repo        string     `json:"repo,omitempty"`
-	PageCount   int        `json:"pageCount"`
-	CrawlTotal  int        `json:"crawlTotal"`
-	LastCrawled *time.Time `json:"lastCrawled,omitempty"`
-	IncludePath string     `json:"includePath,omitempty"`
+	ID           int64      `json:"id"`
+	Name         string     `json:"name"`
+	Type         string     `json:"type"`
+	URL          string     `json:"url"`
+	Repo         string     `json:"repo,omitempty"`
+	PageCount    int        `json:"pageCount"`
+	CrawlTotal   int        `json:"crawlTotal"`
+	LastCrawled  *time.Time `json:"lastCrawled,omitempty"`
+	IncludePath  string     `json:"includePath,omitempty"`
+	IncludePaths []string   `json:"includePaths,omitempty"`
 }
 
 func toSourceInfo(s db.Source) sourceInfo {
 	return sourceInfo{
-		ID:          s.ID,
-		Name:        s.Name,
-		Type:        s.Type,
-		URL:         s.URL,
-		Repo:        s.Repo,
-		PageCount:   s.PageCount,
-		CrawlTotal:  s.CrawlTotal,
-		LastCrawled: s.LastCrawled,
-		IncludePath: s.IncludePath,
+		ID:           s.ID,
+		Name:         s.Name,
+		Type:         s.Type,
+		URL:          s.URL,
+		Repo:         s.Repo,
+		PageCount:    s.PageCount,
+		CrawlTotal:   s.CrawlTotal,
+		LastCrawled:  s.LastCrawled,
+		IncludePath:  s.IncludePath,
+		IncludePaths: s.IncludePaths,
 	}
 }
 

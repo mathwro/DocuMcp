@@ -1,6 +1,7 @@
 package crawler
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/mathwro/DocuMcp/internal/db"
@@ -21,5 +22,20 @@ func TestSourceToConfig_github_repo_defaults_branch_to_main(t *testing.T) {
 func TestProviderForType_github_repo(t *testing.T) {
 	if providerForType("github_repo") != "github" {
 		t.Errorf("expected provider 'github' for github_repo")
+	}
+}
+
+func TestSourceToConfig_ForwardsIncludePaths(t *testing.T) {
+	got := sourceToConfig(db.Source{
+		Type:         "web",
+		URL:          "https://docs.example.com",
+		IncludePath:  "https://docs.example.com/legacy/",
+		IncludePaths: []string{"https://docs.example.com/guides/"},
+	})
+	if got.IncludePath != "https://docs.example.com/legacy/" {
+		t.Fatalf("IncludePath = %q", got.IncludePath)
+	}
+	if !reflect.DeepEqual(got.IncludePaths, []string{"https://docs.example.com/guides/"}) {
+		t.Fatalf("IncludePaths = %#v", got.IncludePaths)
 	}
 }
