@@ -173,6 +173,47 @@ func TestCrawl_IncludePath_ScopedToSubfolder(t *testing.T) {
 	}
 }
 
+func TestCrawl_IncludePaths_ScopedToMultipleSubfolders(t *testing.T) {
+	tarball := buildTarball(t, "owner-repo-abc123", map[string][]byte{
+		"README.md":                   []byte("# Root\n"),
+		"docs/guide.md":               []byte("# Guide\n"),
+		"examples/tutorial.md":        []byte("# Tutorial\n"),
+		"packages/pkg/docs/readme.md": []byte("# Package Docs\n"),
+		"internal/notes.md":           []byte("# Internal\n"),
+	})
+	srv := tarballServer(t, tarball)
+	includePaths := []string{"docs/", "examples/", "packages/pkg/docs/"}
+
+	_, ch, err := githubrepo.NewAdapter(srv.URL).Crawl(context.Background(), config.SourceConfig{
+		Type:         "github_repo",
+		Repo:         "owner/repo",
+		Branch:       "main",
+		IncludePaths: includePaths,
+	}, 42)
+	if err != nil {
+		t.Fatalf("Crawl: %v", err)
+	}
+	pages := drainPages(context.Background(), t, ch)
+	if len(pages) != len(includePaths) {
+		t.Fatalf("got %d pages, want one page per configured prefix; URLs %v", len(pages), urls(pages))
+	}
+}
+
+func TestCrawl_IncludePaths_RejectsTraversal(t *testing.T) {
+	a := githubrepo.NewAdapter("https://api.github.test")
+	_, _, err := a.Crawl(context.Background(), config.SourceConfig{
+		Type:         "github_repo",
+		Repo:         "owner/repo",
+		IncludePaths: []string{"docs/", "../secrets"},
+	}, 1)
+	if err == nil {
+		t.Fatal("expected error for traversal include_paths, got nil")
+	}
+	if !strings.Contains(err.Error(), "include_path") {
+		t.Errorf("error should mention include_path: %v", err)
+	}
+}
+
 func equalStrings(a, b []string) bool {
 	if len(a) != len(b) {
 		return false
