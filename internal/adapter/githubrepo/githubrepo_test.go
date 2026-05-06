@@ -175,14 +175,15 @@ func TestCrawl_IncludePath_ScopedToSubfolder(t *testing.T) {
 
 func TestCrawl_IncludePaths_ScopedToMultipleSubfolders(t *testing.T) {
 	tarball := buildTarball(t, "owner-repo-abc123", map[string][]byte{
-		"README.md":                   []byte("# Root\n"),
-		"docs/guide.md":               []byte("# Guide\n"),
-		"examples/tutorial.md":        []byte("# Tutorial\n"),
-		"packages/pkg/docs/readme.md": []byte("# Package Docs\n"),
-		"internal/notes.md":           []byte("# Internal\n"),
+		"README.md":              []byte("# Root\n"),
+		"docs/guide.md":          []byte("# Guide\n"),
+		"help/tests/writing.md":  []byte("# Writing Tests\n"),
+		"help/tests/running.md":  []byte("# Running Tests\n"),
+		"help/release/notes.md":  []byte("# Release Notes\n"),
+		"internal/notes.md":      []byte("# Internal\n"),
 	})
 	srv := tarballServer(t, tarball)
-	includePaths := []string{"docs/", "examples/", "packages/pkg/docs/"}
+	includePaths := []string{"docs/", "help/tests/"}
 
 	_, ch, err := githubrepo.NewAdapter(srv.URL).Crawl(context.Background(), config.SourceConfig{
 		Type:         "github_repo",
@@ -194,8 +195,8 @@ func TestCrawl_IncludePaths_ScopedToMultipleSubfolders(t *testing.T) {
 		t.Fatalf("Crawl: %v", err)
 	}
 	pages := drainPages(context.Background(), t, ch)
-	if len(pages) != len(includePaths) {
-		t.Fatalf("got %d pages, want one page per configured prefix; URLs %v", len(pages), urls(pages))
+	if len(pages) != 3 {
+		t.Fatalf("got %d pages, want docs/ plus help/tests/ files; URLs %v", len(pages), urls(pages))
 	}
 }
 

@@ -1,5 +1,16 @@
 function blankSource(type = 'web') {
-  return { Name: '', Type: type, URL: '', Repo: '', Branch: '', IncludePath: '', CrawlSchedule: '' }
+  return { Name: '', Type: type, URL: '', Repo: '', Branch: '', IncludePath: '', IncludePaths: [], CrawlSchedule: '' }
+}
+
+function sourceIncludePaths(src) {
+  const paths = Array.isArray(src.IncludePaths) ? src.IncludePaths : []
+  const combined = [src.IncludePath || '', ...paths]
+  return [...new Set(combined.map(p => (p || '').trim()).filter(Boolean))]
+}
+
+function prepareSourcePayload(src) {
+  const paths = sourceIncludePaths(src)
+  return { ...src, IncludePaths: paths, IncludePath: paths[0] || '' }
 }
 
 function app() {
@@ -59,7 +70,7 @@ function app() {
     },
 
     async addSource() {
-      const body = { ...this.newSource }
+      const body = prepareSourcePayload(this.newSource)
       try {
         const r = await fetch('/api/sources', {
           method: 'POST',
@@ -85,6 +96,7 @@ function app() {
         Repo: src.Repo || '',
         Branch: src.Branch || '',
         IncludePath: src.IncludePath || '',
+        IncludePaths: sourceIncludePaths(src),
         CrawlSchedule: src.CrawlSchedule || ''
       }
     },
@@ -95,7 +107,7 @@ function app() {
     },
 
     async updateSource(id) {
-      const body = { ...this.editSource }
+      const body = prepareSourcePayload(this.editSource)
       try {
         const r = await fetch(`/api/sources/${id}`, {
           method: 'PUT',
@@ -243,14 +255,40 @@ function app() {
       return map[type] || type
     },
 
+    includePathPlaceholder(type) {
+      return type === 'github_repo' ? 'docs/' : 'https://docs.example.com/guides/'
+    },
+
+    includePathHelp(type) {
+      if (type === 'github_repo') return 'Only files under these repository folders will be indexed. Leave empty to index the whole repo.'
+      return 'Only same-site URLs under these prefixes will be indexed. Leave empty to use the source URL path.'
+    },
+
+    ensureIncludePathRow(src) {
+      if (!Array.isArray(src.IncludePaths)) src.IncludePaths = []
+      if (src.IncludePaths.length === 0) src.IncludePaths.push('')
+    },
+
+    addIncludePathRow(src) {
+      if (!Array.isArray(src.IncludePaths)) src.IncludePaths = []
+      src.IncludePaths.push('')
+    },
+
+    removeIncludePathRow(src, index) {
+      if (!Array.isArray(src.IncludePaths)) src.IncludePaths = []
+      src.IncludePaths.splice(index, 1)
+    },
+
+    sourceDisplayPaths(src) {
+      return sourceIncludePaths(src).join(', ')
+    },
+
     sourceDisplayURL(src) {
       if (!src) return ''
       if (src.Type === 'github_wiki' && src.Repo) return `https://github.com/${src.Repo}/wiki`
       if (src.Type === 'github_repo' && src.Repo) {
         const branch = src.Branch || 'main'
-        const includePath = (src.IncludePath || '').replace(/^\/+|\/+$/g, '')
-        const base = `https://github.com/${src.Repo}/tree/${branch}`
-        return includePath ? `${base}/${includePath}` : base
+        return `https://github.com/${src.Repo}/tree/${branch}`
       }
       return src.URL || src.BaseURL || ''
     },
