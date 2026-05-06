@@ -7,10 +7,13 @@ import (
 	"net/http/httptest"
 	"reflect"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/mathwro/DocuMcp/internal/api"
 	"github.com/mathwro/DocuMcp/internal/auth"
+	"github.com/mathwro/DocuMcp/internal/config"
+	"github.com/mathwro/DocuMcp/internal/crawler"
 	"github.com/mathwro/DocuMcp/internal/db"
 	"github.com/mathwro/DocuMcp/internal/testutil"
 )
@@ -68,6 +71,103 @@ func TestListSources(t *testing.T) {
 	}
 }
 
+func TestListSources_IncludesOrigin(t *testing.T) {
+	store := openTestStore(t)
+
+	if _, err := store.InsertSource(db.Source{Name: "UI Docs", Type: "web"}); err != nil {
+		t.Fatalf("InsertSource: %v", err)
+	}
+	if err := crawler.SyncConfigSources(store, &config.Config{Sources: []config.SourceConfig{
+		{Name: "Config Docs", Type: "web", URL: "https://docs.example.com"},
+	}}); err != nil {
+		t.Fatalf("SyncConfigSources: %v", err)
+	}
+
+	srv := api.NewServer(store, nil, nil, make([]byte, 32))
+	r := httptest.NewRequest(http.MethodGet, "/api/sources", nil)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, r)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	var sources []map[string]any
+	if err := json.NewDecoder(w.Body).Decode(&sources); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	got := make(map[string]string, len(sources))
+	for _, src := range sources {
+		name, ok := src["Name"].(string)
+		if !ok {
+			t.Fatalf("source missing Name string: %#v", src)
+		}
+		origin, ok := src["Origin"].(string)
+		if !ok {
+			t.Fatalf("source %q missing Origin string: %#v", name, src)
+		}
+		got[name] = origin
+	}
+	if got["UI Docs"] != "ui" {
+		t.Fatalf("UI Docs origin = %q, want ui", got["UI Docs"])
+	}
+	if got["Config Docs"] != "config" {
+		t.Fatalf("Config Docs origin = %q, want config", got["Config Docs"])
+	}
+}
+
+func TestExportSourcesYAML(t *testing.T) {
+	store := openTestStore(t)
+
+	if _, err := store.InsertSource(db.Source{
+		Name:          "UI Docs",
+		Type:          "web",
+		URL:           "https://ui.example.com",
+		Auth:          "legacy-secret",
+		CrawlSchedule: "0 2 * * *",
+		IncludePaths:  []string{"/guides/", "/reference/"},
+	}); err != nil {
+		t.Fatalf("InsertSource: %v", err)
+	}
+	if err := crawler.SyncConfigSources(store, &config.Config{Sources: []config.SourceConfig{
+		{Name: "Config Repo", Type: "github_repo", Repo: "owner/repo", Branch: "develop", IncludePaths: []string{"docs/"}},
+	}}); err != nil {
+		t.Fatalf("SyncConfigSources: %v", err)
+	}
+
+	srv := api.NewServer(store, nil, nil, make([]byte, 32))
+	r := httptest.NewRequest(http.MethodGet, "/api/sources/export", nil)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, r)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	if got := w.Header().Get("Content-Type"); got != "application/x-yaml; charset=utf-8" {
+		t.Fatalf("Content-Type = %q", got)
+	}
+	body := w.Body.String()
+	for _, want := range []string{
+		"sources:",
+		"name: UI Docs",
+		"url: https://ui.example.com",
+		"crawl_schedule: 0 2 * * *",
+		"name: Config Repo",
+		"repo: owner/repo",
+		"branch: develop",
+		"include_paths:",
+		"- docs/",
+	} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("export body missing %q:\n%s", want, body)
+		}
+	}
+	for _, forbidden := range []string{"legacy-secret", "auth:", "last_crawled", "page_count", "crawl_total"} {
+		if strings.Contains(body, forbidden) {
+			t.Fatalf("export body contains %q:\n%s", forbidden, body)
+		}
+	}
+}
+
 func TestCreateSource(t *testing.T) {
 	store := openTestStore(t)
 	srv := api.NewServer(store, nil, nil, make([]byte, 32))
@@ -104,6 +204,32 @@ func TestCreateSource(t *testing.T) {
 	}
 	if len(sources) != 1 {
 		t.Errorf("expected 1 source in store, got %d", len(sources))
+	}
+}
+
+func TestCreateSource_ForcesUIOrigin(t *testing.T) {
+	store := openTestStore(t)
+	srv := api.NewServer(store, nil, nil, make([]byte, 32))
+
+	body, err := json.Marshal(db.Source{Name: "NewDocs", Type: "web", URL: "https://example.com", Origin: db.SourceOriginConfig})
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+
+	r := httptest.NewRequest(http.MethodPost, "/api/sources", bytes.NewReader(body))
+	r.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, r)
+
+	if w.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", w.Code, w.Body.String())
+	}
+	var created db.Source
+	if err := json.NewDecoder(w.Body).Decode(&created); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if created.Origin != db.SourceOriginUI {
+		t.Fatalf("Origin = %q, want %q", created.Origin, db.SourceOriginUI)
 	}
 }
 

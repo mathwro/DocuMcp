@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS sources (
     crawl_total    INTEGER NOT NULL DEFAULT 0,
     include_path   TEXT NOT NULL DEFAULT '',
     include_paths  TEXT NOT NULL DEFAULT '[]',
+    origin         TEXT NOT NULL DEFAULT 'ui',
     created_at     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 

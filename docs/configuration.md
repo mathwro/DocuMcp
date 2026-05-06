@@ -2,7 +2,7 @@
 
 DocuMcp reads source and app configuration from an optional YAML file, and deployment secrets from environment variables. If no config file is present, the server starts with built-in defaults (`port: 8080`, `data_dir: /app/data`, no declarative sources) and all source management happens through the Web UI — those sources persist in the SQLite database under `data_dir`.
 
-Provide a `config.yaml` when you want to declare sources and crawl schedules in version control. Config-declared sources are mirrored into SQLite so they appear in the Web UI and API source listings. The file watcher reloads YAML on save, so source changes take effect without a restart. UI-added sources are stored in the database, not written back to YAML.
+Provide a `config.yaml` when you want to declare sources and crawl schedules in version control. Config-declared sources are mirrored into SQLite so they appear in the Web UI and API source listings. The file watcher reloads YAML on save, so source changes take effect without a restart. UI-added sources are stored in the database and can be exported from the Web UI as a `sources:` YAML block; DocuMcp does not silently rewrite your mounted config file.
 
 Secrets are intentionally not read from `config.yaml`. `DOCUMCP_API_KEY` and `DOCUMCP_SECRET_KEY` come from the process environment so they work with Docker Compose, Kubernetes, systemd, and secret managers without encouraging secrets in a git-tracked YAML file. Changing those values requires recreating or restarting the process with a new environment.
 

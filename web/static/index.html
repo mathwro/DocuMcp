@@ -20,7 +20,10 @@
     <div x-show="view==='sources'" x-cloak>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem">
         <h1>Documentation Sources</h1>
-        <button @click="showAddForm=!showAddForm">+ Add Source</button>
+        <div class="actions">
+          <button class="secondary" @click="exportSources()">Export YAML</button>
+          <button @click="showAddForm=!showAddForm">+ Add Source</button>
+        </div>
       </div>
 
       <!-- Add Source Form -->
@@ -111,6 +114,7 @@
               <span class="badge" :class="isCrawling(src) ? 'badge-crawling' : (src.PageCount > 0 ? 'badge-ok' : 'badge-pending')"
                     x-text="isCrawling(src) ? '⟳ ' + src.PageCount + (src.CrawlTotal > 0 ? ' / ' + src.CrawlTotal : '') + ' pages' : src.PageCount + ' pages'"></span>
               <span class="badge badge-pending" x-text="sourceTypeName(src.Type)"></span>
+              <span class="badge" :class="src.Origin === 'config' ? 'badge-config' : 'badge-ui'" x-text="sourceOriginName(src.Origin)"></span>
             </div>
             <div class="actions">
               <button class="secondary" @click="connectAuth(src.ID, src.Type, src.Name)" x-show="src.Type !== 'web'">Connect</button>
@@ -169,6 +173,8 @@
               <a :href="safeHref(sourceDisplayURL(src))" target="_blank" rel="noopener noreferrer" x-text="sourceDisplayURL(src)"></a>
             </div>
             <div class="muted source-meta" x-show="sourceDisplayPaths(src)" x-text="'Crawls only: ' + sourceDisplayPaths(src)"></div>
+            <div class="muted" x-show="src.Origin === 'config'">Managed from config.yaml</div>
+            <div class="muted" x-show="src.Origin !== 'config'">Added through the UI</div>
             <div class="muted" x-show="src.LastCrawled" x-text="'Last crawled: ' + formatDate(src.LastCrawled)"></div>
             <div class="muted" x-show="!src.LastCrawled && !isCrawling(src)">Never crawled</div>
           </div>

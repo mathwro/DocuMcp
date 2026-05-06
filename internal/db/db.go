@@ -22,6 +22,11 @@ func init() {
 // ErrNotFound is returned when a requested record does not exist.
 var ErrNotFound = errors.New("not found")
 
+const (
+	SourceOriginUI     = "ui"
+	SourceOriginConfig = "config"
+)
+
 // Store wraps a SQLite database and exposes DocuMcp data operations.
 type Store struct {
 	db *sql.DB
@@ -44,6 +49,7 @@ type Source struct {
 	CrawlTotal    int
 	IncludePath   string
 	IncludePaths  []string
+	Origin        string
 }
 
 // Page represents an indexed documentation page.
@@ -115,6 +121,7 @@ func Open(dsn string) (*Store, error) {
 	_, _ = db.Exec(`ALTER TABLE sources ADD COLUMN include_path TEXT NOT NULL DEFAULT ''`)
 	_, _ = db.Exec(`ALTER TABLE sources ADD COLUMN include_paths TEXT NOT NULL DEFAULT '[]'`)
 	_, _ = db.Exec(`ALTER TABLE sources ADD COLUMN branch TEXT NOT NULL DEFAULT ''`)
+	_, _ = db.Exec(`ALTER TABLE sources ADD COLUMN origin TEXT NOT NULL DEFAULT 'ui'`)
 	return &Store{db: db}, nil
 }
 
@@ -132,11 +139,15 @@ func (s *Store) InsertSource(src Source) (int64, error) {
 		return 0, err
 	}
 	legacyPath := sourcepaths.First(paths)
+	origin := src.Origin
+	if origin == "" {
+		origin = SourceOriginUI
+	}
 
 	res, err := s.db.Exec(
-		`INSERT INTO sources (name, type, url, repo, branch, base_url, space_key, auth, crawl_schedule, include_path, include_paths)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		src.Name, src.Type, src.URL, src.Repo, src.Branch, src.BaseURL, src.SpaceKey, src.Auth, src.CrawlSchedule, legacyPath, pathsJSON,
+		`INSERT INTO sources (name, type, url, repo, branch, base_url, space_key, auth, crawl_schedule, include_path, include_paths, origin)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		src.Name, src.Type, src.URL, src.Repo, src.Branch, src.BaseURL, src.SpaceKey, src.Auth, src.CrawlSchedule, legacyPath, pathsJSON, origin,
 	)
 	if err != nil {
 		return 0, fmt.Errorf("insert source: %w", err)
@@ -147,7 +158,7 @@ func (s *Store) InsertSource(src Source) (int64, error) {
 // ListSources returns all configured sources.
 func (s *Store) ListSources() ([]Source, error) {
 	rows, err := s.db.Query(
-		`SELECT id, name, type, url, repo, branch, base_url, space_key, auth, crawl_schedule, page_count, last_crawled, crawl_total, include_path, include_paths
+		`SELECT id, name, type, url, repo, branch, base_url, space_key, auth, crawl_schedule, page_count, last_crawled, crawl_total, include_path, include_paths, origin
 		 FROM sources ORDER BY id`,
 	)
 	if err != nil {
@@ -161,7 +172,7 @@ func (s *Store) ListSources() ([]Source, error) {
 		var includePathsJSON string
 		if err := rows.Scan(
 			&src.ID, &src.Name, &src.Type, &src.URL, &src.Repo, &src.Branch,
-			&src.BaseURL, &src.SpaceKey, &src.Auth, &src.CrawlSchedule, &src.PageCount, &src.LastCrawled, &src.CrawlTotal, &src.IncludePath, &includePathsJSON,
+			&src.BaseURL, &src.SpaceKey, &src.Auth, &src.CrawlSchedule, &src.PageCount, &src.LastCrawled, &src.CrawlTotal, &src.IncludePath, &includePathsJSON, &src.Origin,
 		); err != nil {
 			return nil, fmt.Errorf("scan source: %w", err)
 		}
@@ -178,11 +189,11 @@ func (s *Store) GetSource(id int64) (*Source, error) {
 	var src Source
 	var includePathsJSON string
 	err := s.db.QueryRow(
-		`SELECT id, name, type, url, repo, branch, base_url, space_key, auth, crawl_schedule, page_count, last_crawled, crawl_total, include_path, include_paths
+		`SELECT id, name, type, url, repo, branch, base_url, space_key, auth, crawl_schedule, page_count, last_crawled, crawl_total, include_path, include_paths, origin
 		 FROM sources WHERE id = ?`, id,
 	).Scan(
 		&src.ID, &src.Name, &src.Type, &src.URL, &src.Repo, &src.Branch,
-		&src.BaseURL, &src.SpaceKey, &src.Auth, &src.CrawlSchedule, &src.PageCount, &src.LastCrawled, &src.CrawlTotal, &src.IncludePath, &includePathsJSON,
+		&src.BaseURL, &src.SpaceKey, &src.Auth, &src.CrawlSchedule, &src.PageCount, &src.LastCrawled, &src.CrawlTotal, &src.IncludePath, &includePathsJSON, &src.Origin,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, fmt.Errorf("source %d: %w", id, ErrNotFound)
@@ -267,9 +278,9 @@ func (s *Store) UpsertSourceConfigByName(src Source) (int64, error) {
 
 	res, err := s.db.Exec(
 		`UPDATE sources
-		 SET type = ?, url = ?, repo = ?, branch = ?, base_url = ?, space_key = ?, auth = ?, crawl_schedule = ?, include_path = ?, include_paths = ?
+		 SET type = ?, url = ?, repo = ?, branch = ?, base_url = ?, space_key = ?, auth = ?, crawl_schedule = ?, include_path = ?, include_paths = ?, origin = ?
 		 WHERE id = ?`,
-		src.Type, src.URL, src.Repo, src.Branch, src.BaseURL, src.SpaceKey, src.Auth, src.CrawlSchedule, legacyPath, pathsJSON, id,
+		src.Type, src.URL, src.Repo, src.Branch, src.BaseURL, src.SpaceKey, src.Auth, src.CrawlSchedule, legacyPath, pathsJSON, SourceOriginConfig, id,
 	)
 	if err != nil {
 		return 0, fmt.Errorf("upsert config source %q: %w", src.Name, err)

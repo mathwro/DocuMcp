@@ -84,6 +84,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/sources", s.listSources)
+	s.mux.HandleFunc("GET /api/sources/export", s.exportSources)
 	s.mux.HandleFunc("POST /api/sources", s.createSource)
 	s.mux.HandleFunc("PUT /api/sources/{id}", s.updateSource)
 	s.mux.HandleFunc("DELETE /api/sources/{id}", s.deleteSource)
