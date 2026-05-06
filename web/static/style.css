@@ -50,6 +50,36 @@ h2 { font-size: 1.1rem; font-weight: 600; }
 .source-meta a { color: inherit; text-decoration: none; }
 .source-meta a:hover { color: var(--accent-hover); text-decoration: underline; }
 
+.path-scope {
+  margin-bottom: 1rem;
+}
+
+.path-scope label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 0.35rem;
+}
+
+.path-scope .muted {
+  margin-bottom: 0.75rem;
+}
+
+.path-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+  margin-bottom: 0.75rem;
+}
+
+.path-row input {
+  flex: 1;
+  margin-bottom: 0;
+}
+
+.path-row button {
+  flex: 0 0 auto;
+}
+
 .device-code-box { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 1rem; margin-top: 1rem; }
 .device-code { font-size: 2rem; font-weight: 700; letter-spacing: 0.25em; color: var(--accent); margin: 0.5rem 0; }
 

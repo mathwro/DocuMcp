@@ -2,7 +2,7 @@
 
 DocuMcp reads source and app configuration from an optional YAML file, and deployment secrets from environment variables. If no config file is present, the server starts with built-in defaults (`port: 8080`, `data_dir: /app/data`, no declarative sources) and all source management happens through the Web UI — those sources persist in the SQLite database under `data_dir`.
 
-Provide a `config.yaml` when you want to declare sources and crawl schedules in version control. The file watcher reloads it on save, so changes take effect without a restart. UI-added sources are stored in the database, not written back to YAML.
+Provide a `config.yaml` when you want to declare sources and crawl schedules in version control. Config-declared sources are mirrored into SQLite so they appear in the Web UI and API source listings. The file watcher reloads YAML on save, so source changes take effect without a restart. UI-added sources are stored in the database, not written back to YAML.
 
 Secrets are intentionally not read from `config.yaml`. `DOCUMCP_API_KEY` and `DOCUMCP_SECRET_KEY` come from the process environment so they work with Docker Compose, Kubernetes, systemd, and secret managers without encouraging secrets in a git-tracked YAML file. Changing those values requires recreating or restarting the process with a new environment.
 
@@ -17,7 +17,8 @@ Secrets are intentionally not read from `config.yaml`. `DOCUMCP_API_KEY` and `DO
 | `sources[].name` | Display name for the source |
 | `sources[].type` | `web`, `github_wiki`, `github_repo`, or `azure_devops` |
 | `sources[].url` | Base URL (web and Azure DevOps sources) |
-| `sources[].include_path` | For `web`: restricts crawling to a URL prefix (same origin required). For `github_repo`: restricts indexing to a subfolder (e.g. `docs/`). `..` segments are rejected. |
+| `sources[].include_path` | Legacy single path filter. Prefer `include_paths` for new config. |
+| `sources[].include_paths` | For `web`: only same-origin URLs under these prefixes are indexed. Entries may be relative paths such as `/guides/` or full same-origin URLs. For `github_repo`: only files under these repository folders are indexed. Empty means the current whole-source behavior. |
 | `sources[].repo` | `owner/repo` (GitHub Wiki and GitHub Repo sources) |
 | `sources[].branch` | Branch name for `github_repo` sources (default: `main`) |
 | `sources[].crawl_schedule` | Cron expression, e.g. `0 2 * * *` or `@weekly` |

@@ -3,6 +3,7 @@ package db_test
 import (
 	"encoding/json"
 	"errors"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -194,6 +195,78 @@ func TestUpdateSourceConfig(t *testing.T) {
 	}
 }
 
+func TestUpsertSourceConfigByName_InsertsConfigSource(t *testing.T) {
+	store := testutil.OpenStore(t)
+
+	id, err := store.UpsertSourceConfigByName(db.Source{
+		Name:         "Config Docs",
+		Type:         "web",
+		URL:          "https://docs.example.com",
+		IncludePaths: []string{"guides/", "reference/"},
+	})
+	if err != nil {
+		t.Fatalf("UpsertSourceConfigByName: %v", err)
+	}
+	got, err := store.GetSource(id)
+	if err != nil {
+		t.Fatalf("GetSource: %v", err)
+	}
+	if got.Name != "Config Docs" || got.Type != "web" || got.URL != "https://docs.example.com" {
+		t.Fatalf("source = %#v", got)
+	}
+	if !reflect.DeepEqual(got.IncludePaths, []string{"guides/", "reference/"}) {
+		t.Fatalf("IncludePaths = %#v", got.IncludePaths)
+	}
+}
+
+func TestUpsertSourceConfigByName_UpdatesConfigSourceAndPreservesProgress(t *testing.T) {
+	store := testutil.OpenStore(t)
+
+	id, err := store.InsertSource(db.Source{
+		Name:          "Config Docs",
+		Type:          "web",
+		URL:           "https://old.example.com",
+		CrawlSchedule: "0 1 * * *",
+	})
+	if err != nil {
+		t.Fatalf("InsertSource: %v", err)
+	}
+	if err := store.UpdateSourcePageCount(id, 12); err != nil {
+		t.Fatalf("UpdateSourcePageCount: %v", err)
+	}
+
+	gotID, err := store.UpsertSourceConfigByName(db.Source{
+		Name:          "Config Docs",
+		Type:          "github_repo",
+		Repo:          "owner/repo",
+		Branch:        "develop",
+		IncludePaths:  []string{"docs/", "help/tests/"},
+		CrawlSchedule: "0 2 * * *",
+	})
+	if err != nil {
+		t.Fatalf("UpsertSourceConfigByName: %v", err)
+	}
+	if gotID != id {
+		t.Fatalf("id = %d, want existing id %d", gotID, id)
+	}
+	got, err := store.GetSource(id)
+	if err != nil {
+		t.Fatalf("GetSource: %v", err)
+	}
+	if got.Type != "github_repo" {
+		t.Fatalf("Type = %q, want github_repo", got.Type)
+	}
+	if got.Repo != "owner/repo" || got.Branch != "develop" {
+		t.Fatalf("repo/branch = %q/%q", got.Repo, got.Branch)
+	}
+	if got.PageCount != 12 || got.LastCrawled == nil {
+		t.Fatalf("progress not preserved: PageCount=%d LastCrawled=%v", got.PageCount, got.LastCrawled)
+	}
+	if !reflect.DeepEqual(got.IncludePaths, []string{"docs/", "help/tests/"}) {
+		t.Fatalf("IncludePaths = %#v", got.IncludePaths)
+	}
+}
+
 func TestUpdateSourcePageCount(t *testing.T) {
 	store := testutil.OpenStore(t)
 
@@ -341,5 +414,51 @@ func TestInsertSource_github_repo_persists_branch(t *testing.T) {
 	}
 	if got.IncludePath != "docs/" {
 		t.Errorf("IncludePath: got %q, want %q", got.IncludePath, "docs/")
+	}
+}
+
+func TestInsertSource_PersistsIncludePaths(t *testing.T) {
+	store := testutil.OpenStore(t)
+
+	id, err := store.InsertSource(db.Source{
+		Name:         "Docs",
+		Type:         "web",
+		URL:          "https://docs.example.com",
+		IncludePaths: []string{"https://docs.example.com/guides/", "https://docs.example.com/reference/"},
+	})
+	if err != nil {
+		t.Fatalf("InsertSource: %v", err)
+	}
+	got, err := store.GetSource(id)
+	if err != nil {
+		t.Fatalf("GetSource: %v", err)
+	}
+	want := []string{"https://docs.example.com/guides/", "https://docs.example.com/reference/"}
+	if !reflect.DeepEqual(got.IncludePaths, want) {
+		t.Fatalf("IncludePaths = %#v, want %#v", got.IncludePaths, want)
+	}
+	if got.IncludePath != want[0] {
+		t.Fatalf("IncludePath = %q, want first path %q", got.IncludePath, want[0])
+	}
+}
+
+func TestInsertSource_LegacyIncludePathPopulatesIncludePaths(t *testing.T) {
+	store := testutil.OpenStore(t)
+
+	id, err := store.InsertSource(db.Source{
+		Name:        "Docs",
+		Type:        "github_repo",
+		Repo:        "owner/repo",
+		IncludePath: "docs/",
+	})
+	if err != nil {
+		t.Fatalf("InsertSource: %v", err)
+	}
+	got, err := store.GetSource(id)
+	if err != nil {
+		t.Fatalf("GetSource: %v", err)
+	}
+	if !reflect.DeepEqual(got.IncludePaths, []string{"docs/"}) {
+		t.Fatalf("IncludePaths = %#v, want [docs/]", got.IncludePaths)
 	}
 }

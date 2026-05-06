@@ -36,10 +36,6 @@
         <template x-if="newSource.Type === 'web'">
           <input type="url" x-model="newSource.URL" placeholder="https://docs.example.com" />
         </template>
-        <template x-if="newSource.Type === 'web'">
-          <input type="url" x-model="newSource.IncludePath"
-                 placeholder="Restrict to path prefix (optional, e.g. https://docs.example.com/guide/)" />
-        </template>
         <template x-if="newSource.Type === 'github_wiki'">
           <input type="text" x-model="newSource.Repo" placeholder="owner/repo" />
         </template>
@@ -49,9 +45,20 @@
         <template x-if="newSource.Type === 'github_repo'">
           <input type="text" x-model="newSource.Branch" placeholder="Branch (default: main)" />
         </template>
-        <template x-if="newSource.Type === 'github_repo'">
-          <input type="text" x-model="newSource.IncludePath"
-                 placeholder="Subfolder prefix (optional, e.g. docs/)" />
+        <template x-if="newSource.Type === 'web' || newSource.Type === 'github_repo'">
+          <div class="path-scope" x-init="ensureIncludePathRow(newSource)">
+            <label>Crawl only these paths</label>
+            <p class="muted" x-text="includePathHelp(newSource.Type)"></p>
+            <template x-for="(_, index) in newSource.IncludePaths" :key="index">
+              <div class="path-row">
+                <input type="text"
+                       x-model="newSource.IncludePaths[index]"
+                       :placeholder="includePathPlaceholder(newSource.Type)" />
+                <button type="button" class="secondary" @click="removeIncludePathRow(newSource, index)">Remove</button>
+              </div>
+            </template>
+            <button type="button" class="secondary" @click="addIncludePathRow(newSource)">Add path</button>
+          </div>
         </template>
         <template x-if="newSource.Type === 'azure_devops'">
           <input type="url" x-model="newSource.URL" placeholder="https://dev.azure.com/org/project" />
@@ -123,10 +130,6 @@
             <template x-if="editSource.Type === 'web'">
               <input type="url" x-model="editSource.URL" placeholder="https://docs.example.com" />
             </template>
-            <template x-if="editSource.Type === 'web'">
-              <input type="url" x-model="editSource.IncludePath"
-                     placeholder="Restrict to path prefix (optional, e.g. https://docs.example.com/guide/)" />
-            </template>
             <template x-if="editSource.Type === 'github_wiki'">
               <input type="text" x-model="editSource.Repo" placeholder="owner/repo" />
             </template>
@@ -136,9 +139,20 @@
             <template x-if="editSource.Type === 'github_repo'">
               <input type="text" x-model="editSource.Branch" placeholder="Branch (default: main)" />
             </template>
-            <template x-if="editSource.Type === 'github_repo'">
-              <input type="text" x-model="editSource.IncludePath"
-                     placeholder="Subfolder prefix (optional, e.g. docs/)" />
+            <template x-if="editSource.Type === 'web' || editSource.Type === 'github_repo'">
+              <div class="path-scope">
+                <label>Crawl only these paths</label>
+                <p class="muted" x-text="includePathHelp(editSource.Type)"></p>
+                <template x-for="(_, index) in editSource.IncludePaths" :key="index">
+                  <div class="path-row">
+                    <input type="text"
+                           x-model="editSource.IncludePaths[index]"
+                           :placeholder="includePathPlaceholder(editSource.Type)" />
+                    <button type="button" class="secondary" @click="removeIncludePathRow(editSource, index)">Remove</button>
+                  </div>
+                </template>
+                <button type="button" class="secondary" @click="addIncludePathRow(editSource)">Add path</button>
+              </div>
             </template>
             <template x-if="editSource.Type === 'azure_devops'">
               <input type="url" x-model="editSource.URL" placeholder="https://dev.azure.com/org/project" />
@@ -154,6 +168,7 @@
               <span x-text="sourceTypeName(src.Type) + ': '"></span>
               <a :href="safeHref(sourceDisplayURL(src))" target="_blank" rel="noopener noreferrer" x-text="sourceDisplayURL(src)"></a>
             </div>
+            <div class="muted source-meta" x-show="sourceDisplayPaths(src)" x-text="'Crawls only: ' + sourceDisplayPaths(src)"></div>
             <div class="muted" x-show="src.LastCrawled" x-text="'Last crawled: ' + formatDate(src.LastCrawled)"></div>
             <div class="muted" x-show="!src.LastCrawled && !isCrawling(src)">Never crawled</div>
           </div>

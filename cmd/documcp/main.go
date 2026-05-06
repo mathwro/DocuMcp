@@ -46,6 +46,10 @@ func main() {
 		os.Exit(1)
 	}
 	defer store.Close()
+	if err := crawler.SyncConfigSources(store, cfg); err != nil {
+		slog.Error("sync config sources", "err", err)
+		os.Exit(1)
+	}
 
 	modelPath := getenv("DOCUMCP_MODEL_PATH", "/app/models/all-MiniLM-L6-v2")
 	var embedder *embed.Embedder
@@ -72,6 +76,10 @@ func main() {
 	// Reload config on file change. Non-fatal if watch cannot be established.
 	watcher, err := config.Watch(cfgPath, func(newCfg *config.Config) {
 		slog.Info("config reloaded")
+		if err := crawler.SyncConfigSources(store, newCfg); err != nil {
+			slog.Error("sync config sources", "err", err)
+			return
+		}
 		scheduler.Load(newCfg)
 	})
 	if err != nil {

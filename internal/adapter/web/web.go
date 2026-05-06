@@ -14,6 +14,7 @@ import (
 	"github.com/mathwro/DocuMcp/internal/config"
 	"github.com/mathwro/DocuMcp/internal/db"
 	"github.com/mathwro/DocuMcp/internal/httpsafe"
+	"github.com/mathwro/DocuMcp/internal/sourcepaths"
 )
 
 func init() {
@@ -52,16 +53,13 @@ func (a *WebAdapter) Crawl(ctx context.Context, src config.SourceConfig, sourceI
 	// Determine the path prefix to use for URL filtering.
 	// If include_path is set, validate it shares the same origin and use its path.
 	// Otherwise fall back to the source URL's own path.
-	filterPath := strings.TrimRight(base.Path, "/") + "/"
-	if src.IncludePath != "" {
-		includeParsed, parseErr := url.Parse(src.IncludePath)
-		if parseErr != nil {
-			return 0, nil, fmt.Errorf("web adapter: parse include_path: %w", parseErr)
+	filterPaths := []string{strings.TrimRight(base.Path, "/") + "/"}
+	includePaths := sourcepaths.Normalize(src.IncludePath, src.IncludePaths)
+	if len(includePaths) > 0 {
+		filterPaths, err = webIncludePathFilterPaths(base, includePaths)
+		if err != nil {
+			return 0, nil, err
 		}
-		if !sameOrigin(includeParsed, base) {
-			return 0, nil, fmt.Errorf("web adapter: include_path %q must share origin with source URL %q", src.IncludePath, src.URL)
-		}
-		filterPath = strings.TrimRight(includeParsed.Path, "/") + "/"
 	}
 
 	// Discover and filter URLs before starting the goroutine so we can return
@@ -77,7 +75,7 @@ func (a *WebAdapter) Crawl(ctx context.Context, src config.SourceConfig, sourceI
 			slog.Warn("web: skipping cross-origin sitemap URL", "url", u, "base", src.URL)
 			continue
 		}
-		if !filterURL(ctx, parsed, base, filterPath) {
+		if !filterURLAny(ctx, parsed, base, filterPaths) {
 			if !isAllowedHost(ctx, parsed) {
 				slog.Warn("web: skipping blocked host in sitemap URL", "url", u)
 			}
@@ -249,6 +247,36 @@ func filterURL(ctx context.Context, u *url.URL, base *url.URL, filterPath string
 		return false
 	}
 	return true
+}
+
+func filterURLAny(ctx context.Context, u *url.URL, base *url.URL, filterPaths []string) bool {
+	for _, filterPath := range filterPaths {
+		if filterURL(ctx, u, base, filterPath) {
+			return true
+		}
+	}
+	return false
+}
+
+func webIncludePathFilterPaths(base *url.URL, includePaths []string) ([]string, error) {
+	filterPaths := make([]string, 0, len(includePaths))
+	for _, includePath := range includePaths {
+		includeParsed, parseErr := url.Parse(includePath)
+		if parseErr != nil {
+			return nil, fmt.Errorf("web adapter: parse include_path: %w", parseErr)
+		}
+		if includeParsed.IsAbs() {
+			if !sameOrigin(includeParsed, base) {
+				return nil, fmt.Errorf("web adapter: include_path %q must share origin with source URL %q", includePath, base.String())
+			}
+		} else if includeParsed.Host != "" {
+			return nil, fmt.Errorf("web adapter: include_path %q must be a relative path or share origin with source URL %q", includePath, base.String())
+		} else {
+			includeParsed = base.ResolveReference(includeParsed)
+		}
+		filterPaths = append(filterPaths, strings.TrimRight(includeParsed.Path, "/")+"/")
+	}
+	return filterPaths, nil
 }
 
 // isAllowedHost delegates to httpsafe.AllowedHost.

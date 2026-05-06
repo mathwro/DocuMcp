@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strconv"
 	"testing"
 
@@ -279,6 +280,67 @@ func TestUpdateSource(t *testing.T) {
 	}
 	if updated.LastCrawled == nil {
 		t.Errorf("expected last crawled to remain set")
+	}
+}
+
+func TestUpdateSource_IncludePaths(t *testing.T) {
+	store := openTestStore(t)
+	id, err := store.InsertSource(db.Source{
+		Name: "Docs",
+		Type: "web",
+		URL:  "https://docs.example.com",
+	})
+	if err != nil {
+		t.Fatalf("InsertSource: %v", err)
+	}
+
+	srv := api.NewServer(store, nil, nil, make([]byte, 32))
+	body, err := json.Marshal(db.Source{
+		Name:         "Docs",
+		URL:          "https://docs.example.com",
+		IncludePaths: []string{"https://docs.example.com/guides/", "https://docs.example.com/reference/"},
+	})
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	r := httptest.NewRequest(http.MethodPut, "/api/sources/"+itoa(id), bytes.NewReader(body))
+	r.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, r)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	var updated db.Source
+	if err := json.NewDecoder(w.Body).Decode(&updated); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	want := []string{"https://docs.example.com/guides/", "https://docs.example.com/reference/"}
+	if !reflect.DeepEqual(updated.IncludePaths, want) {
+		t.Fatalf("IncludePaths = %#v, want %#v", updated.IncludePaths, want)
+	}
+	if updated.IncludePath != want[0] {
+		t.Fatalf("IncludePath = %q, want first path", updated.IncludePath)
+	}
+}
+
+func TestCreateSource_IncludePathsRejectsBadURL(t *testing.T) {
+	store := openTestStore(t)
+	srv := api.NewServer(store, nil, nil, make([]byte, 32))
+	body, _ := json.Marshal(db.Source{
+		Name:         "Docs",
+		Type:         "web",
+		URL:          "https://docs.example.com",
+		IncludePaths: []string{"https://docs.example.com/guides/", "://bad-url"},
+	})
+
+	r := httptest.NewRequest(http.MethodPost, "/api/sources", bytes.NewReader(body))
+	r.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, r)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", w.Code, w.Body.String())
 	}
 }
 

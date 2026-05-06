@@ -18,6 +18,7 @@ import (
 	"github.com/mathwro/DocuMcp/internal/config"
 	"github.com/mathwro/DocuMcp/internal/db"
 	"github.com/mathwro/DocuMcp/internal/httpsafe"
+	"github.com/mathwro/DocuMcp/internal/sourcepaths"
 )
 
 // tarballClient is used for all tarball fetches; its CheckRedirect hook
@@ -49,11 +50,13 @@ func (a *Adapter) Crawl(ctx context.Context, src config.SourceConfig, sourceID i
 	if branch == "" {
 		branch = "main"
 	}
-	includePath := normalizeIncludePath(src.IncludePath)
-
-	if err := validateIncludePath(src.IncludePath); err != nil {
-		return 0, nil, err
+	rawIncludePaths := sourcepaths.Normalize(src.IncludePath, src.IncludePaths)
+	for _, includePath := range rawIncludePaths {
+		if err := validateIncludePath(includePath); err != nil {
+			return 0, nil, err
+		}
 	}
+	includePaths := normalizeIncludePaths(rawIncludePaths)
 
 	resp, err := a.fetchTarball(ctx, src, branch)
 	if err != nil {
@@ -109,7 +112,7 @@ func (a *Adapter) Crawl(ctx context.Context, src config.SourceConfig, sourceID i
 			if !ok {
 				continue
 			}
-			if includePath != "" && !strings.HasPrefix(relPath, includePath) {
+			if !hasIncludePathPrefix(relPath, includePaths) {
 				continue
 			}
 			if _, allowed := allowedExts[strings.ToLower(path.Ext(relPath))]; !allowed {
@@ -126,7 +129,7 @@ func (a *Adapter) Crawl(ctx context.Context, src config.SourceConfig, sourceID i
 				continue
 			}
 
-			page := buildPage(src.Repo, branch, includePath, relPath, string(content), sourceID)
+			page := buildPage(src.Repo, branch, includePaths, relPath, string(content), sourceID)
 			select {
 			case <-ctx.Done():
 				return
@@ -217,9 +220,38 @@ func normalizeIncludePath(p string) string {
 	return p
 }
 
+func normalizeIncludePaths(paths []string) []string {
+	out := make([]string, 0, len(paths))
+	for _, p := range paths {
+		out = append(out, normalizeIncludePath(p))
+	}
+	return out
+}
+
+func hasIncludePathPrefix(relPath string, includePaths []string) bool {
+	if len(includePaths) == 0 {
+		return true
+	}
+	for _, includePath := range includePaths {
+		if strings.HasPrefix(relPath, includePath) {
+			return true
+		}
+	}
+	return false
+}
+
+func trimFirstIncludePathPrefix(relPath string, includePaths []string) string {
+	for _, includePath := range includePaths {
+		if strings.HasPrefix(relPath, includePath) {
+			return strings.TrimPrefix(relPath, includePath)
+		}
+	}
+	return relPath
+}
+
 // buildPage constructs a db.Page for a matched file.
-func buildPage(repo, branch, includePath, relPath, content string, sourceID int64) db.Page {
-	rel := strings.TrimPrefix(relPath, includePath)
+func buildPage(repo, branch string, includePaths []string, relPath, content string, sourceID int64) db.Page {
+	rel := trimFirstIncludePathPrefix(relPath, includePaths)
 	stem := strings.TrimSuffix(rel, path.Ext(rel))
 	segments := strings.Split(stem, "/")
 	// filter empty segments (defensive; shouldn't occur after TrimPrefix)
