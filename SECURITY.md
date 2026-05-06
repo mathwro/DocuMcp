@@ -68,3 +68,7 @@ If you do expose DocuMcp beyond a single local user:
    proxy reach it over loopback or a private network.
 4. Set `DOCUMCP_SECRET_KEY` to a persistent 32-byte value so stored
    tokens survive restarts; back the SQLite data volume up.
+
+`DOCUMCP_API_KEY` and `DOCUMCP_SECRET_KEY` are environment variables, not
+`config.yaml` fields. Treat them as deployment secrets and inject them with
+Compose, systemd, Kubernetes, or a secret manager.

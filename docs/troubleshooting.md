@@ -6,6 +6,20 @@ Common symptoms and how to diagnose them. If your issue is not listed, check the
 
 `DOCUMCP_API_KEY` is set — every request needs `Authorization: Bearer <key>`. Unset it for local-only use, or pass the header from your MCP client. See [install.md](install.md#when-to-set-documcp_api_key) for guidance on when the key is appropriate.
 
+`config.yaml` does not control this key. Docker/Compose injects `DOCUMCP_API_KEY` into the container environment when the container is created, so removing `config.yaml` will not disable bearer auth.
+
+Check the running container:
+
+```bash
+docker compose exec documcp sh -lc 'test -n "$DOCUMCP_API_KEY" && echo DOCUMCP_API_KEY=set || echo DOCUMCP_API_KEY=unset'
+```
+
+If it is set and you want local-only unauthenticated access, remove `DOCUMCP_API_KEY` from `.env` or your Compose/service definition, then recreate the container:
+
+```bash
+docker compose up -d --force-recreate
+```
+
 ## The UI loads but `/api/sources` returns 404 in docker-compose
 
 Check `docker compose logs documcp`. The binary inside the container binds to `0.0.0.0:8080` (the image sets `DOCUMCP_BIND_ADDR`); if you changed the port in `config.yaml`, also update the compose `ports:` mapping and — if running outside compose — set `DOCUMCP_BIND_ADDR=0.0.0.0:<new-port>`.

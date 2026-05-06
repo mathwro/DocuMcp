@@ -36,6 +36,17 @@ docker run -d `
 
 Open `http://localhost:8080`. Add a public web source from the UI and trigger a crawl. The `documcp-data` named volume preserves your indexed content and any tokens you store across restarts.
 
+If you previously started this container with `DOCUMCP_API_KEY` set and want to return to local-only unauthenticated access, remove that environment variable and recreate the container. `docker stop` / `docker start` keeps the old container environment:
+
+```bash
+docker rm -f documcp
+docker run -d \
+  --name documcp \
+  -p 8080:8080 \
+  -v documcp-data:/app/data \
+  ghcr.io/mathwro/documcp:latest
+```
+
 For private sources, exposing the port to your LAN, declarative source seeding via `config.yaml`, or building from source, see **[docs/install.md](docs/install.md)**.
 
 ### AI-assisted setup
