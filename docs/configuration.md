@@ -1,8 +1,10 @@
 # Configuration
 
-DocuMcp reads its configuration from an optional YAML file and a small set of environment variables. If no config file is present, the server starts with built-in defaults (`port: 8080`, `data_dir: /app/data`, no declarative sources) and all source management happens through the Web UI — those sources persist in the SQLite database under `data_dir`.
+DocuMcp reads source and app configuration from an optional YAML file, and deployment secrets from environment variables. If no config file is present, the server starts with built-in defaults (`port: 8080`, `data_dir: /app/data`, no declarative sources) and all source management happens through the Web UI — those sources persist in the SQLite database under `data_dir`.
 
 Provide a `config.yaml` when you want to declare sources and crawl schedules in version control. The file watcher reloads it on save, so changes take effect without a restart. UI-added sources are stored in the database, not written back to YAML.
+
+Secrets are intentionally not read from `config.yaml`. `DOCUMCP_API_KEY` and `DOCUMCP_SECRET_KEY` come from the process environment so they work with Docker Compose, Kubernetes, systemd, and secret managers without encouraging secrets in a git-tracked YAML file. Changing those values requires recreating or restarting the process with a new environment.
 
 `DOCUMCP_CONFIG` lets you override the path. When it is set, the file must exist (typos fail loudly); when it is unset, a missing file silently falls back to defaults.
 
@@ -26,8 +28,8 @@ See [sources.md](sources.md) for a per-type breakdown with examples.
 
 | Variable | Description |
 |---|---|
-| `DOCUMCP_SECRET_KEY` | 32-byte hex key for encrypting stored GitHub PATs and Azure DevOps OAuth tokens in SQLite. If unset, a random key is generated per run (tokens lost on restart). Only relevant if you use authenticated sources. |
-| `DOCUMCP_API_KEY` | Bearer token required on `/api/*` and `/mcp/*` endpoints. If unset, all endpoints are unauthenticated (warns at startup). See [install.md](install.md#when-to-set-documcp_api_key) for when to enable this. |
+| `DOCUMCP_SECRET_KEY` | 32-byte hex key for encrypting stored GitHub PATs and Azure DevOps OAuth tokens in SQLite. If unset, a random key is generated per run (tokens lost on restart). Only relevant if you use authenticated sources. Not read from `config.yaml`. |
+| `DOCUMCP_API_KEY` | Bearer token required on `/api/*` and `/mcp/*` endpoints. If unset, all endpoints are unauthenticated (warns at startup). See [install.md](install.md#when-to-set-documcp_api_key) for when to enable this. Not read from `config.yaml`. |
 | `DOCUMCP_CONFIG` | Path to config file (default: `config.yaml`) |
 | `DOCUMCP_MODEL_PATH` | Path to the ONNX model directory |
 | `DOCUMCP_BIND_ADDR` | Address to listen on. Defaults to `127.0.0.1:<port>` so a fresh install is not reachable from the network. The Docker image sets this to `0.0.0.0:8080` so the container's port mapping works; when running the binary directly, set `DOCUMCP_BIND_ADDR=0.0.0.0:8080` to expose it on the LAN. |

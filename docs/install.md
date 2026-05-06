@@ -85,6 +85,8 @@ docker compose up -d # or: podman compose up -d
 
 `DOCUMCP_API_KEY` is a bearer token enforced on every `/api/*` and `/mcp/*` request. It is **off by default** because the typical deployment is a single-user container bound to `127.0.0.1`, where the host's own permissions are the security boundary.
 
+This key is a deployment secret, not a `config.yaml` setting. The container reads it from the process environment at startup. If you remove or change it in `.env`, recreate the container so Docker/Compose starts DocuMcp with the new environment.
+
 | Situation | API key needed? |
 |---|---|
 | Single user, container on `localhost`, default `127.0.0.1` bind | No |
@@ -100,3 +102,9 @@ echo "DOCUMCP_API_KEY=$(openssl rand -hex 32)" >> .env
 ```
 
 Then include it in every MCP client config — see [mcp-clients.md](mcp-clients.md). The startup log warns if the key is unset, which is expected for the local-only case.
+
+To disable bearer auth for local-only use, remove `DOCUMCP_API_KEY` from `.env` or your Compose/service definition, then recreate the container:
+
+```bash
+docker compose up -d --force-recreate
+```

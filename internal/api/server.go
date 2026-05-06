@@ -178,10 +178,12 @@ func isLoopbackOrigin(origin string) bool {
 	return ip != nil && ip.IsLoopback()
 }
 
-// logAPIKeyWarning logs a startup warning when no API key is configured.
+// LogAPIKeyStatus logs whether API/MCP bearer-token auth is enabled.
 // Call once from main after creating the server.
-func LogAPIKeyWarning() {
-	if os.Getenv("DOCUMCP_API_KEY") == "" {
+func LogAPIKeyStatus() {
+	if os.Getenv("DOCUMCP_API_KEY") != "" {
+		slog.Info("DOCUMCP_API_KEY set — API and MCP endpoints require Authorization: Bearer <key>")
+	} else {
 		slog.Warn("DOCUMCP_API_KEY not set — API and MCP endpoints are unauthenticated")
 	}
 }

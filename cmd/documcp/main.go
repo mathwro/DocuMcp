@@ -83,8 +83,8 @@ func main() {
 	mcpServer := mcp.NewServer(store, embedder)
 	apiServer := api.NewServerWithMCPHandlers(store, c, mcpServer.Handler(), mcpServer.StreamableHTTPHandler(), key)
 
-	// Warn if no API key is configured — the API and MCP endpoints are open.
-	api.LogAPIKeyWarning()
+	// Log whether API/MCP bearer-token auth is enabled.
+	api.LogAPIKeyStatus()
 
 	addr := bindAddr(cfg.Server.Port)
 	slog.Info("starting DocuMcp", "addr", addr)
