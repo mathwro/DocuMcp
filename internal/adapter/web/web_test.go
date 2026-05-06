@@ -78,6 +78,31 @@ func TestFilterURL_IncludePathFiltersCorrectly(t *testing.T) {
 	}
 }
 
+func TestFilterURL_IncludePathsFiltersCorrectly(t *testing.T) {
+	withLookup(t, map[string][]net.IP{
+		"docs.example.com": {net.ParseIP("1.2.3.4")},
+	})
+	base := mustParseURL("https://docs.example.com/docs/")
+	filterPaths := []string{"/docs/guide/", "/docs/reference/"}
+
+	cases := []struct {
+		rawURL string
+		want   bool
+	}{
+		{"https://docs.example.com/docs/guide/page1", true},
+		{"https://docs.example.com/docs/reference/page2", true},
+		{"https://docs.example.com/docs/api/page3", false},
+	}
+
+	for _, tc := range cases {
+		u := mustParseURL(tc.rawURL)
+		got := filterURLAny(context.Background(), u, base, filterPaths)
+		if got != tc.want {
+			t.Errorf("filterURLAny(%q) = %v, want %v", tc.rawURL, got, tc.want)
+		}
+	}
+}
+
 func mustParseURL(raw string) *url.URL {
 	u, err := url.Parse(raw)
 	if err != nil {
