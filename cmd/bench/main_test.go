@@ -1,10 +1,13 @@
 package main
 
 import (
+	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestLoadTasksJSONL(t *testing.T) {
@@ -28,6 +31,70 @@ func TestLoadTasksJSONL(t *testing.T) {
 	}
 	if tasks[1].Source != "Go" {
 		t.Fatalf("expected source Go, got %q", tasks[1].Source)
+	}
+}
+
+func TestParseFlagsValidation(t *testing.T) {
+	if _, err := parseFlags(nil); err == nil || !strings.Contains(err.Error(), "-tasks is required") {
+		t.Fatalf("parseFlags without tasks error = %v, want -tasks required", err)
+	}
+	if _, err := parseFlags([]string{"-tasks", "tasks.jsonl", "-runs", "0"}); err == nil || !strings.Contains(err.Error(), "-runs") {
+		t.Fatalf("parseFlags invalid runs error = %v, want runs validation", err)
+	}
+	if _, err := parseFlags([]string{"-tasks", "tasks.jsonl", "-mode", "unknown"}); err == nil || !strings.Contains(err.Error(), "unsupported -mode") {
+		t.Fatalf("parseFlags invalid mode error = %v, want unsupported mode", err)
+	}
+
+	cfg, err := parseFlags([]string{"-tasks", "tasks.jsonl", "-mode", "native", "-runs", "2", "-timeout", "5s", "-dry-run"})
+	if err != nil {
+		t.Fatalf("parseFlags valid args: %v", err)
+	}
+	if cfg.TasksPath != "tasks.jsonl" || cfg.Mode != "native" || cfg.Runs != 2 || cfg.Timeout != 5*time.Second || !cfg.DryRun {
+		t.Fatalf("unexpected parsed config: %+v", cfg)
+	}
+}
+
+func TestRunDryRunWritesReport(t *testing.T) {
+	dir := t.TempDir()
+	tasksPath := filepath.Join(dir, "tasks.jsonl")
+	outputPath := filepath.Join(dir, "report.json")
+	if err := os.WriteFile(tasksPath, []byte(`{"id":"dry","prompt":"Say hello","expected_contains":["codex"]}
+`), 0o600); err != nil {
+		t.Fatalf("write tasks: %v", err)
+	}
+
+	var out strings.Builder
+	err := run(context.Background(), runConfig{
+		CodexCommand: "codex",
+		TasksPath:    tasksPath,
+		Mode:         "native",
+		Workdir:      dir,
+		OutputPath:   outputPath,
+		RawDir:       "",
+		Runs:         1,
+		Timeout:      time.Second,
+		DryRun:       true,
+	}, &out)
+	if err != nil {
+		t.Fatalf("run dry-run: %v", err)
+	}
+	if !strings.Contains(out.String(), "dry native run 1") || !strings.Contains(out.String(), "wrote "+outputPath) {
+		t.Fatalf("unexpected output:\n%s", out.String())
+	}
+
+	var rep report
+	data, err := os.ReadFile(outputPath)
+	if err != nil {
+		t.Fatalf("read report: %v", err)
+	}
+	if err := json.Unmarshal(data, &rep); err != nil {
+		t.Fatalf("unmarshal report: %v", err)
+	}
+	if len(rep.Results) != 1 {
+		t.Fatalf("report results = %d, want 1", len(rep.Results))
+	}
+	if !strings.Contains(rep.Results[0].FinalAnswer, "codex --search exec") {
+		t.Fatalf("dry-run final answer = %q, want command line", rep.Results[0].FinalAnswer)
 	}
 }
 
@@ -189,6 +256,33 @@ func TestRawEventsPath(t *testing.T) {
 	}
 }
 
+func TestWriteRawEventsCreatesParentDirectory(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "raw", "events.jsonl")
+
+	if err := writeRawEvents(path, []byte("event\n")); err != nil {
+		t.Fatalf("writeRawEvents: %v", err)
+	}
+	got, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read raw events: %v", err)
+	}
+	if string(got) != "event\n" {
+		t.Fatalf("raw events = %q, want event newline", got)
+	}
+	if err := writeRawEvents("", []byte("ignored")); err != nil {
+		t.Fatalf("writeRawEvents empty path: %v", err)
+	}
+}
+
+func TestSanitizeFilenameFallbackAndCompaction(t *testing.T) {
+	if got := sanitizeFilename("  Hello, World!  "); got != "hello-world" {
+		t.Fatalf("sanitizeFilename = %q, want hello-world", got)
+	}
+	if got := sanitizeFilename("!!!"); got != "run" {
+		t.Fatalf("sanitizeFilename punctuation = %q, want run", got)
+	}
+}
+
 func TestComparePairsReportsRatios(t *testing.T) {
 	pairs := comparePairs([]result{
 		{TaskID: "one", Mode: "native", DurationMS: 100, Metrics: eventMetrics{TotalTokens: 200}},
@@ -218,5 +312,68 @@ func TestMCPNoopSuccess(t *testing.T) {
 	r.Metrics.ToolCalls = 1
 	if isSuccessful(r) {
 		t.Fatal("expected mcp_noop with tool calls to fail")
+	}
+}
+
+func TestEvaluateHintsReportsMissingExpectedContent(t *testing.T) {
+	hints := evaluateHints(task{
+		ExpectedContains:    []string{"readinessProbe", "livenessProbe"},
+		ExpectedURLContains: []string{"/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/"},
+	}, "Use readinessProbe for readiness checks.", "https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/")
+
+	if hints.AnswerContainsMatched {
+		t.Fatal("expected answer hints not to fully match")
+	}
+	if len(hints.MissingAnswerContains) != 1 || hints.MissingAnswerContains[0] != "livenessProbe" {
+		t.Fatalf("missing answer hints = %#v", hints.MissingAnswerContains)
+	}
+	if !hints.URLContainsMatched {
+		t.Fatalf("expected URL hint to match, missing %#v", hints.MissingURLContains)
+	}
+}
+
+func TestSummarizeComputesMediansAndSuccessRate(t *testing.T) {
+	summaries := summarize([]result{
+		{
+			Mode:       "native",
+			DurationMS: 300,
+			ExitCode:   0,
+			Metrics:    eventMetrics{InputTokens: 30, TotalTokens: 300, ToolCalls: 2},
+			CorrectHints: hintResult{
+				AnswerContainsMatched: true,
+				URLContainsMatched:    true,
+			},
+		},
+		{
+			Mode:       "native",
+			DurationMS: 100,
+			ExitCode:   1,
+			Metrics:    eventMetrics{InputTokens: 10, TotalTokens: 100, ToolCalls: 1},
+			CorrectHints: hintResult{
+				AnswerContainsMatched: true,
+				URLContainsMatched:    true,
+			},
+		},
+		{
+			Mode:       "native",
+			DurationMS: 200,
+			ExitCode:   0,
+			Metrics:    eventMetrics{InputTokens: 20, TotalTokens: 200, ToolCalls: 3},
+			CorrectHints: hintResult{
+				AnswerContainsMatched: true,
+				URLContainsMatched:    true,
+			},
+		},
+	})
+
+	if len(summaries) != 1 {
+		t.Fatalf("summaries = %d, want 1", len(summaries))
+	}
+	got := summaries[0]
+	if got.Runs != 3 || got.MedianDurationMS != 200 || got.MedianInputTokens != 20 || got.MedianTotalTokens != 200 || got.MedianToolCalls != 2 {
+		t.Fatalf("unexpected summary: %+v", got)
+	}
+	if got.Successes != 2 || got.SuccessRate != 2.0/3.0 {
+		t.Fatalf("success summary = %d/%f, want 2/%f", got.Successes, got.SuccessRate, 2.0/3.0)
 	}
 }

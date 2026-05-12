@@ -286,6 +286,36 @@ func TestUpdateSourcePageCount(t *testing.T) {
 	}
 }
 
+func TestUpdateSourceCrawlTotal(t *testing.T) {
+	store := testutil.OpenStore(t)
+
+	id, err := store.InsertSource(db.Source{Name: "S", Type: "web"})
+	if err != nil {
+		t.Fatalf("InsertSource: %v", err)
+	}
+	if err := store.UpdateSourceCrawlTotal(id, 27); err != nil {
+		t.Fatalf("UpdateSourceCrawlTotal: %v", err)
+	}
+	got, err := store.GetSource(id)
+	if err != nil {
+		t.Fatalf("GetSource: %v", err)
+	}
+	if got.CrawlTotal != 27 {
+		t.Fatalf("CrawlTotal = %d, want 27", got.CrawlTotal)
+	}
+}
+
+func TestStoreDBReturnsUnderlyingDatabase(t *testing.T) {
+	store := testutil.OpenStore(t)
+
+	if store.DB() == nil {
+		t.Fatal("DB() = nil, want underlying database")
+	}
+	if err := store.DB().Ping(); err != nil {
+		t.Fatalf("DB().Ping: %v", err)
+	}
+}
+
 func TestGetSource(t *testing.T) {
 	store := testutil.OpenStore(t)
 
@@ -340,6 +370,27 @@ func TestUpsertAndGetToken(t *testing.T) {
 	}
 	if string(data) != string(tokenData) {
 		t.Errorf("expected %q, got %q", tokenData, data)
+	}
+}
+
+func TestDeleteToken(t *testing.T) {
+	store := testutil.OpenStore(t)
+
+	srcID, err := store.InsertSource(db.Source{Name: "S", Type: "web"})
+	if err != nil {
+		t.Fatalf("InsertSource: %v", err)
+	}
+	if err := store.UpsertToken(srcID, "github", []byte("encrypted"), time.Now().Add(time.Hour)); err != nil {
+		t.Fatalf("UpsertToken: %v", err)
+	}
+	if err := store.DeleteToken(srcID, "github"); err != nil {
+		t.Fatalf("DeleteToken: %v", err)
+	}
+	if _, err := store.GetToken(srcID, "github"); !errors.Is(err, db.ErrNotFound) {
+		t.Fatalf("GetToken after delete error = %v, want ErrNotFound", err)
+	}
+	if err := store.DeleteToken(srcID, "github"); err != nil {
+		t.Fatalf("DeleteToken missing token: %v", err)
 	}
 }
 
