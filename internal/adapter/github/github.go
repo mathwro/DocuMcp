@@ -35,10 +35,12 @@ func (a *GitHubAdapter) NeedsAuth(src config.SourceConfig) bool { return true }
 // Crawl fetches all Markdown pages from the given GitHub Wiki repository and
 // sends them to the returned channel. The channel is closed when crawling is
 // complete or ctx is cancelled.
-func (a *GitHubAdapter) Crawl(ctx context.Context, src config.SourceConfig, sourceID int64) (int, <-chan db.Page, error) {
+func (a *GitHubAdapter) Crawl(ctx context.Context, src config.SourceConfig, sourceID int64) (int, <-chan db.Page, <-chan error, error) {
 	ch := make(chan db.Page, 10)
+	errCh := make(chan error)
 	go func() {
 		defer close(ch)
+		defer close(errCh)
 
 		// src.Token is populated by the crawler from the token store.
 		token := src.Token
@@ -103,7 +105,7 @@ func (a *GitHubAdapter) Crawl(ctx context.Context, src config.SourceConfig, sour
 			}
 		}
 	}()
-	return 0, ch, nil
+	return 0, ch, errCh, nil
 }
 
 // fetchBlobContent retrieves and decodes the content of a single GitHub blob.

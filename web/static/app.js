@@ -123,7 +123,14 @@ function app() {
     },
 
     async crawlNow(id) {
-      await fetch(`/api/sources/${id}/crawl`, { method: 'POST' })
+      const r = await fetch(`/api/sources/${id}/crawl`, { method: 'POST' })
+      if (!r.ok) { alert('Failed to start crawl: ' + await r.text()); return }
+      await this.loadSources()
+    },
+
+    async stopCrawl(id) {
+      const r = await fetch(`/api/sources/${id}/crawl`, { method: 'DELETE' })
+      if (!r.ok) { alert('Failed to stop crawl: ' + await r.text()); return }
       await this.loadSources()
     },
 

@@ -2,7 +2,9 @@ package web
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -15,6 +17,7 @@ import (
 	"github.com/mathwro/DocuMcp/internal/db"
 	"github.com/mathwro/DocuMcp/internal/httpsafe"
 	"github.com/mathwro/DocuMcp/internal/sourcepaths"
+	"golang.org/x/net/html"
 )
 
 func init() {
@@ -33,21 +36,23 @@ var crawlClient = &http.Client{
 // WebAdapter crawls generic web documentation sites.
 type WebAdapter struct{}
 
+var errCrawlBlocked = errors.New("web crawl blocked by remote site")
+
 func (a *WebAdapter) NeedsAuth(src config.SourceConfig) bool {
 	return src.Auth != ""
 }
 
-func (a *WebAdapter) Crawl(ctx context.Context, src config.SourceConfig, sourceID int64) (int, <-chan db.Page, error) {
+func (a *WebAdapter) Crawl(ctx context.Context, src config.SourceConfig, sourceID int64) (int, <-chan db.Page, <-chan error, error) {
 	if src.URL == "" {
-		return 0, nil, fmt.Errorf("web adapter: source URL is required")
+		return 0, nil, nil, fmt.Errorf("web adapter: source URL is required")
 	}
 
 	base, err := url.Parse(src.URL)
 	if err != nil {
-		return 0, nil, fmt.Errorf("web adapter: parse source URL: %w", err)
+		return 0, nil, nil, fmt.Errorf("web adapter: parse source URL: %w", err)
 	}
 	if !isAllowedHost(ctx, base) {
-		return 0, nil, fmt.Errorf("web adapter: source URL %q resolves to a blocked host", src.URL)
+		return 0, nil, nil, fmt.Errorf("web adapter: source URL %q resolves to a blocked host", src.URL)
 	}
 
 	// Determine the path prefix to use for URL filtering.
@@ -58,7 +63,7 @@ func (a *WebAdapter) Crawl(ctx context.Context, src config.SourceConfig, sourceI
 	if len(includePaths) > 0 {
 		filterPaths, err = webIncludePathFilterPaths(base, includePaths)
 		if err != nil {
-			return 0, nil, err
+			return 0, nil, nil, err
 		}
 	}
 
@@ -84,14 +89,19 @@ func (a *WebAdapter) Crawl(ctx context.Context, src config.SourceConfig, sourceI
 		urls = append(urls, u)
 	}
 	if len(urls) == 0 {
+		urls = discoverLinkedURLs(ctx, crawlClient, src.URL, base, filterPaths)
+	}
+	if len(urls) == 0 {
 		urls = []string{src.URL}
 	}
 
 	total := len(urls)
 	ch := make(chan db.Page, 10)
+	errCh := make(chan error, 1)
 
 	go func() {
 		defer close(ch)
+		defer close(errCh)
 
 		visited := map[string]bool{}
 
@@ -117,13 +127,18 @@ func (a *WebAdapter) Crawl(ctx context.Context, src config.SourceConfig, sourceI
 
 			page, err := fetchPage(ctx, crawlClient, pageURL, sourceID, base)
 			if err != nil {
+				if errors.Is(err, errCrawlBlocked) {
+					errCh <- err
+					slog.Error("web: crawl stopped because remote site blocked automated access", "url", pageURL, "err", err)
+					return
+				}
 				slog.Warn("web: fetch page", "url", pageURL, "err", err)
 				continue
 			}
 			ch <- page
 		}
 	}()
-	return total, ch, nil
+	return total, ch, errCh, nil
 }
 
 const crawlUserAgent = "DocuMcp/1.0 (documentation indexer; +https://github.com/mathwro/DocuMcp)"
@@ -139,6 +154,9 @@ func fetchPage(ctx context.Context, client *http.Client, pageURL string, sourceI
 		return db.Page{}, fmt.Errorf("fetch %s: %w", pageURL, err)
 	}
 	defer resp.Body.Close()
+	if isBlockedResponse(resp) {
+		return db.Page{}, fmt.Errorf("%w: %s returned %d (%s)", errCrawlBlocked, pageURL, resp.StatusCode, blockReason(resp))
+	}
 	if resp.StatusCode == http.StatusTooManyRequests {
 		// Honour Retry-After if present (seconds or HTTP-date).
 		delay := 10 * time.Second
@@ -165,6 +183,9 @@ func fetchPage(ctx context.Context, client *http.Client, pageURL string, sourceI
 			return db.Page{}, fmt.Errorf("fetch %s (retry): %w", pageURL, err2)
 		}
 		defer resp2.Body.Close()
+		if isBlockedResponse(resp2) {
+			return db.Page{}, fmt.Errorf("%w: %s returned %d after retry (%s)", errCrawlBlocked, pageURL, resp2.StatusCode, blockReason(resp2))
+		}
 		if resp2.StatusCode != http.StatusOK {
 			return db.Page{}, fmt.Errorf("non-200 from %s (retry): %d", pageURL, resp2.StatusCode)
 		}
@@ -196,6 +217,20 @@ func fetchPage(ctx context.Context, client *http.Client, pageURL string, sourceI
 	}, nil
 }
 
+func isBlockedResponse(resp *http.Response) bool {
+	if strings.EqualFold(resp.Header.Get("cf-mitigated"), "challenge") {
+		return true
+	}
+	return resp.StatusCode == http.StatusForbidden && strings.Contains(strings.ToLower(resp.Header.Get("Server")), "cloudflare")
+}
+
+func blockReason(resp *http.Response) string {
+	if strings.EqualFold(resp.Header.Get("cf-mitigated"), "challenge") {
+		return "Cloudflare challenge"
+	}
+	return "blocked response"
+}
+
 // discoverSitemapURLs tries to find a sitemap for the given source URL.
 // It attempts (1) <src>/sitemap.xml and (2) <origin>/sitemap.xml, returning
 // the first non-empty result. Returns nil if neither is found.
@@ -218,6 +253,104 @@ func discoverSitemapURLs(ctx context.Context, srcURL string, base *url.URL) []st
 		}
 	}
 	return nil
+}
+
+const maxLinkDiscoveredURLs = 1000
+
+func discoverLinkedURLs(ctx context.Context, client *http.Client, srcURL string, base *url.URL, filterPaths []string) []string {
+	start, err := url.Parse(srcURL)
+	if err != nil {
+		return nil
+	}
+	if !filterURLAny(ctx, start, base, filterPaths) {
+		return nil
+	}
+	queue := []string{start.String()}
+	seen := map[string]bool{start.String(): true}
+	out := []string{start.String()}
+
+	for len(queue) > 0 && len(out) < maxLinkDiscoveredURLs {
+		pageURL := queue[0]
+		queue = queue[1:]
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, pageURL, nil)
+		if err != nil {
+			continue
+		}
+		req.Header.Set("User-Agent", crawlUserAgent)
+		resp, err := client.Do(req)
+		if err != nil {
+			continue
+		}
+		if resp.StatusCode != http.StatusOK {
+			resp.Body.Close()
+			continue
+		}
+		page, err := url.Parse(pageURL)
+		if err != nil {
+			resp.Body.Close()
+			continue
+		}
+		links := extractLinks(ctx, resp.Body, page, base, filterPaths)
+		resp.Body.Close()
+		for _, link := range links {
+			if seen[link] {
+				continue
+			}
+			seen[link] = true
+			out = append(out, link)
+			queue = append(queue, link)
+			if len(out) >= maxLinkDiscoveredURLs {
+				break
+			}
+		}
+	}
+	return out
+}
+
+func extractLinks(ctx context.Context, r io.Reader, page, base *url.URL, filterPaths []string) []string {
+	doc, err := html.Parse(r)
+	if err != nil {
+		return nil
+	}
+	seen := map[string]bool{}
+	var links []string
+	var walk func(*html.Node)
+	walk = func(n *html.Node) {
+		if n.Type == html.ElementNode && strings.EqualFold(n.Data, "a") {
+			for _, attr := range n.Attr {
+				if strings.EqualFold(attr.Key, "href") {
+					if link := normalizeLink(ctx, attr.Val, page, base, filterPaths); link != "" && !seen[link] {
+						seen[link] = true
+						links = append(links, link)
+					}
+					break
+				}
+			}
+		}
+		for c := n.FirstChild; c != nil; c = c.NextSibling {
+			walk(c)
+		}
+	}
+	walk(doc)
+	return links
+}
+
+func normalizeLink(ctx context.Context, href string, page, base *url.URL, filterPaths []string) string {
+	href = strings.TrimSpace(href)
+	if href == "" || strings.HasPrefix(href, "#") {
+		return ""
+	}
+	u, err := url.Parse(href)
+	if err != nil {
+		return ""
+	}
+	resolved := page.ResolveReference(u)
+	resolved.Fragment = ""
+	resolved.RawQuery = ""
+	if !filterURLAny(ctx, resolved, base, filterPaths) {
+		return ""
+	}
+	return resolved.String()
 }
 
 func urlToPath(u, base *url.URL) []string {
@@ -274,7 +407,11 @@ func webIncludePathFilterPaths(base *url.URL, includePaths []string) ([]string, 
 		} else {
 			includeParsed = base.ResolveReference(includeParsed)
 		}
-		filterPaths = append(filterPaths, strings.TrimRight(includeParsed.Path, "/")+"/")
+		path := includeParsed.Path
+		if strings.HasSuffix(includePath, "/") {
+			path = strings.TrimRight(path, "/") + "/"
+		}
+		filterPaths = append(filterPaths, path)
 	}
 	return filterPaths, nil
 }

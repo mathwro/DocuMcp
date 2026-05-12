@@ -56,3 +56,43 @@ func TestParseSitemap_Empty(t *testing.T) {
 		t.Errorf("expected 0 URLs, got %d", len(urls))
 	}
 }
+
+func TestParseSitemap_Index(t *testing.T) {
+	srv := httptest.NewServer(nil)
+	mux := http.NewServeMux()
+	mux.HandleFunc("/sitemap.xml", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/xml")
+		w.Write([]byte(`<?xml version="1.0"?>
+<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <sitemap><loc>` + srv.URL + `/docs-a.xml</loc></sitemap>
+  <sitemap><loc>` + srv.URL + `/docs-b.xml</loc></sitemap>
+</sitemapindex>`))
+	})
+	mux.HandleFunc("/docs-a.xml", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/xml")
+		w.Write([]byte(`<?xml version="1.0"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://example.com/docs/page-a</loc></url>
+</urlset>`))
+	})
+	mux.HandleFunc("/docs-b.xml", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/xml")
+		w.Write([]byte(`<?xml version="1.0"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://example.com/docs/page-b</loc></url>
+</urlset>`))
+	})
+	srv.Config.Handler = mux
+	defer srv.Close()
+
+	urls, err := web.ParseSitemap(context.Background(), srv.URL+"/sitemap.xml", nil)
+	if err != nil {
+		t.Fatalf("ParseSitemap: %v", err)
+	}
+	if len(urls) != 2 {
+		t.Fatalf("expected 2 URLs, got %d: %v", len(urls), urls)
+	}
+	if urls[0] != "https://example.com/docs/page-a" || urls[1] != "https://example.com/docs/page-b" {
+		t.Fatalf("unexpected URLs: %v", urls)
+	}
+}

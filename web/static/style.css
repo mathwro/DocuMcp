@@ -51,6 +51,7 @@ h2 { font-size: 1.1rem; font-weight: 600; }
 .source-meta { margin-bottom: 0.25rem; overflow-wrap: anywhere; }
 .source-meta a { color: inherit; text-decoration: none; }
 .source-meta a:hover { color: var(--accent-hover); text-decoration: underline; }
+.crawl-error { color: var(--danger); font-size: 0.875rem; margin-top: 0.35rem; overflow-wrap: anywhere; }
 
 .path-scope {
   margin-bottom: 1rem;

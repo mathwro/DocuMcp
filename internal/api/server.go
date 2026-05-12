@@ -35,6 +35,8 @@ type Server struct {
 	pendingFlows         map[int64]*pendingFlow
 	flowMu               sync.Mutex
 	crawlingIDs          map[int64]bool // source IDs with an active crawl goroutine
+	crawlCancels         map[int64]context.CancelFunc
+	crawlErrors          map[int64]string
 	crawlingMu           sync.Mutex
 	cancel               context.CancelFunc // cancels background work on Shutdown
 	ctx                  context.Context    // cancelled when Shutdown is called
@@ -60,6 +62,8 @@ func NewServerWithMCPHandlers(store *db.Store, c *crawler.Crawler, mcpHandler, m
 		tokenStore:           auth.NewTokenStore(store, key),
 		pendingFlows:         make(map[int64]*pendingFlow),
 		crawlingIDs:          make(map[int64]bool),
+		crawlCancels:         make(map[int64]context.CancelFunc),
+		crawlErrors:          make(map[int64]string),
 		ctx:                  ctx,
 		cancel:               cancel,
 	}
@@ -89,6 +93,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("PUT /api/sources/{id}", s.updateSource)
 	s.mux.HandleFunc("DELETE /api/sources/{id}", s.deleteSource)
 	s.mux.HandleFunc("POST /api/sources/{id}/crawl", s.triggerCrawl)
+	s.mux.HandleFunc("DELETE /api/sources/{id}/crawl", s.stopCrawl)
 	s.mux.HandleFunc("GET /api/search", s.searchHandler)
 	s.mux.HandleFunc("POST /api/sources/{id}/auth/start", s.authStart)
 	s.mux.HandleFunc("GET /api/sources/{id}/auth/poll", s.authPoll)
