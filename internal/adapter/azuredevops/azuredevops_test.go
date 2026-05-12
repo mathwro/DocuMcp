@@ -51,3 +51,10 @@ func TestAzureDevOpsAdapter_CrawlsWikiPages(t *testing.T) {
 		t.Fatalf("expected 2 pages, got %d", len(pages))
 	}
 }
+
+func TestAzureDevOpsAdapter_NeedsAuth(t *testing.T) {
+	a := azuredevops.NewAdapter("")
+	if !a.NeedsAuth(config.SourceConfig{Type: "azure_devops"}) {
+		t.Fatal("NeedsAuth = false, want true")
+	}
+}

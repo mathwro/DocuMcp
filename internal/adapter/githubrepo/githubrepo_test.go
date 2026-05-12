@@ -29,6 +29,13 @@ func TestAdapterRegistered(t *testing.T) {
 	}
 }
 
+func TestAdapter_NeedsAuth(t *testing.T) {
+	a := githubrepo.NewAdapter("https://api.github.com")
+	if !a.NeedsAuth(config.SourceConfig{Type: "github_repo", Repo: "owner/repo"}) {
+		t.Fatal("NeedsAuth = false, want true")
+	}
+}
+
 // buildTarball produces a gzipped tar archive whose entries are prefixed
 // with "owner-repo-sha/", mimicking GitHub's tarball output.
 func buildTarball(t *testing.T, prefix string, entries map[string][]byte) []byte {

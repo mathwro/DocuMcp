@@ -2,15 +2,19 @@ package search
 
 import (
 	"fmt"
+	"reflect"
 
 	"github.com/mathwro/DocuMcp/internal/db"
-	"github.com/mathwro/DocuMcp/internal/embed"
 )
+
+type queryEmbedder interface {
+	Embed([]string) ([][]float32, error)
+}
 
 // Semantic runs a nearest-neighbour vector search using sqlite-vec.
 // Returns nil, nil when embedder is nil — caller skips semantic search gracefully.
-func Semantic(store *db.Store, embedder *embed.Embedder, query string, limit int) ([]Result, error) {
-	if embedder == nil {
+func Semantic(store *db.Store, embedder queryEmbedder, query string, limit int) ([]Result, error) {
+	if isNilEmbedder(embedder) {
 		return nil, nil
 	}
 	vecs, err := embedder.Embed([]string{query})
@@ -40,4 +44,17 @@ func Semantic(store *db.Store, embedder *embed.Embedder, query string, limit int
 		return nil, fmt.Errorf("scan semantic results: %w", err)
 	}
 	return results, nil
+}
+
+func isNilEmbedder(embedder queryEmbedder) bool {
+	if embedder == nil {
+		return true
+	}
+	v := reflect.ValueOf(embedder)
+	switch v.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
+		return v.IsNil()
+	default:
+		return false
+	}
 }

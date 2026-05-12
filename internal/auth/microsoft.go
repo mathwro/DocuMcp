@@ -13,6 +13,11 @@ import (
 // No app registration required — works across all tenants without admin consent.
 const AzureCLIClientID = "04b07795-8ddb-461a-bbee-02f9e1bf7b46"
 
+var (
+	postForm  = http.PostForm
+	pollAfter = time.After
+)
+
 // MicrosoftDeviceFlow holds state for an in-progress device code flow.
 type MicrosoftDeviceFlow struct {
 	DeviceCode      string
@@ -27,7 +32,7 @@ type MicrosoftDeviceFlow struct {
 // and tenant. For production use: baseURL="https://login.microsoftonline.com", tenant="consumers".
 func NewMicrosoftDeviceFlow(baseURL, tenant string) (*MicrosoftDeviceFlow, error) {
 	endpoint := fmt.Sprintf("%s/%s/oauth2/v2.0/devicecode", baseURL, tenant)
-	resp, err := http.PostForm(endpoint, url.Values{
+	resp, err := postForm(endpoint, url.Values{
 		"client_id": {AzureCLIClientID},
 		"scope":     {"https://management.azure.com/user_impersonation offline_access"},
 	})
@@ -72,10 +77,10 @@ func (f *MicrosoftDeviceFlow) Poll(ctx context.Context) (*Token, error) {
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
-		case <-time.After(time.Duration(interval) * time.Second):
+		case <-pollAfter(time.Duration(interval) * time.Second):
 		}
 
-		resp, err := http.PostForm(f.tokenEndpoint, url.Values{
+		resp, err := postForm(f.tokenEndpoint, url.Values{
 			"client_id":   {AzureCLIClientID},
 			"grant_type":  {"urn:ietf:params:oauth:grant-type:device_code"},
 			"device_code": {f.DeviceCode},

@@ -53,3 +53,10 @@ func TestGitHubAdapter_CrawlsWikiPages(t *testing.T) {
 		t.Fatalf("expected 2 pages (Home + Authentication Guide), got %d", len(pages))
 	}
 }
+
+func TestGitHubAdapter_NeedsAuth(t *testing.T) {
+	a := github.NewAdapter("https://api.github.com")
+	if !a.NeedsAuth(config.SourceConfig{Type: "github_wiki", Repo: "owner/repo"}) {
+		t.Fatal("NeedsAuth = false, want true")
+	}
+}

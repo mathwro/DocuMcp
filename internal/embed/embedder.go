@@ -12,8 +12,16 @@ import (
 
 // Embedder wraps a hugot feature extraction pipeline.
 type Embedder struct {
-	session  *hugot.Session
-	pipeline *pipelines.FeatureExtractionPipeline
+	session  sessionDestroyer
+	pipeline embeddingPipeline
+}
+
+type sessionDestroyer interface {
+	Destroy() error
+}
+
+type embeddingPipeline interface {
+	RunPipeline([]string) (*pipelines.FeatureExtractionOutput, error)
 }
 
 // New creates an Embedder backed by the ONNX model at modelPath.
