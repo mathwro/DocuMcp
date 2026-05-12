@@ -54,6 +54,7 @@ If `DOCUMCP_API_KEY` is set, configure Codex with `bearer_token_env_var = "DOCUM
 | Tool | Description |
 |---|---|
 | `list_sources` | Lists all configured sources with names, types, page counts, and crawl status |
-| `search_docs(query, source?)` | Hybrid search returning up to 10 results with short excerpts (~200 chars) and source names. Use `get_page` for full content. |
+| `search_docs(query, source?, limit?, snippet_chars?)` | Hybrid search returning compact ranked snippets and source names. Answer from snippets when sufficient. |
+| `get_page_excerpt(url, query?, max_chars?)` | Retrieve a bounded excerpt from a page, optionally focused around query terms |
 | `browse_source(source, section?)` | Hierarchical table of contents — top-level sections with page counts, or up to 50 pages in a section |
-| `get_page(url)` | Retrieve the full content of a specific page by URL |
+| `get_page(url)` | Retrieve the full content of a specific page by URL; use only when snippets/excerpts are insufficient |

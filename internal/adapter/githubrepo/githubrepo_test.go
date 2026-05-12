@@ -92,7 +92,7 @@ func TestCrawl_HappyPath_WholeRepo(t *testing.T) {
 	srv := tarballServer(t, tarball)
 
 	a := githubrepo.NewAdapter(srv.URL)
-	_, ch, err := a.Crawl(context.Background(), config.SourceConfig{
+	_, ch, _, err := a.Crawl(context.Background(), config.SourceConfig{
 		Type:   "github_repo",
 		Repo:   "owner/repo",
 		Branch: "main",
@@ -138,7 +138,7 @@ func TestCrawl_IncludePath_ScopedToSubfolder(t *testing.T) {
 	srv := tarballServer(t, tarball)
 
 	a := githubrepo.NewAdapter(srv.URL)
-	_, ch, err := a.Crawl(context.Background(), config.SourceConfig{
+	_, ch, _, err := a.Crawl(context.Background(), config.SourceConfig{
 		Type:        "github_repo",
 		Repo:        "owner/repo",
 		Branch:      "main",
@@ -185,7 +185,7 @@ func TestCrawl_IncludePaths_ScopedToMultipleSubfolders(t *testing.T) {
 	srv := tarballServer(t, tarball)
 	includePaths := []string{"docs/", "help/tests/"}
 
-	_, ch, err := githubrepo.NewAdapter(srv.URL).Crawl(context.Background(), config.SourceConfig{
+	_, ch, _, err := githubrepo.NewAdapter(srv.URL).Crawl(context.Background(), config.SourceConfig{
 		Type:         "github_repo",
 		Repo:         "owner/repo",
 		Branch:       "main",
@@ -202,7 +202,7 @@ func TestCrawl_IncludePaths_ScopedToMultipleSubfolders(t *testing.T) {
 
 func TestCrawl_IncludePaths_RejectsTraversal(t *testing.T) {
 	a := githubrepo.NewAdapter("https://api.github.test")
-	_, _, err := a.Crawl(context.Background(), config.SourceConfig{
+	_, _, _, err := a.Crawl(context.Background(), config.SourceConfig{
 		Type:         "github_repo",
 		Repo:         "owner/repo",
 		IncludePaths: []string{"docs/", "../secrets"},
@@ -234,7 +234,7 @@ func TestCrawl_Title_FromFirstH1(t *testing.T) {
 	})
 	srv := tarballServer(t, tarball)
 
-	_, ch, err := githubrepo.NewAdapter(srv.URL).Crawl(context.Background(), config.SourceConfig{
+	_, ch, _, err := githubrepo.NewAdapter(srv.URL).Crawl(context.Background(), config.SourceConfig{
 		Type:   "github_repo",
 		Repo:   "o/r",
 		Branch: "main",
@@ -258,7 +258,7 @@ func TestCrawl_Title_FallsBackToFilename(t *testing.T) {
 	})
 	srv := tarballServer(t, tarball)
 
-	_, ch, err := githubrepo.NewAdapter(srv.URL).Crawl(context.Background(), config.SourceConfig{
+	_, ch, _, err := githubrepo.NewAdapter(srv.URL).Crawl(context.Background(), config.SourceConfig{
 		Type:   "github_repo",
 		Repo:   "o/r",
 		Branch: "main",
@@ -293,7 +293,7 @@ func TestCrawl_SendsAuthHeader_WhenTokenSet(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 
-	_, ch, err := githubrepo.NewAdapter(srv.URL).Crawl(context.Background(), config.SourceConfig{
+	_, ch, _, err := githubrepo.NewAdapter(srv.URL).Crawl(context.Background(), config.SourceConfig{
 		Type:   "github_repo",
 		Repo:   "o/r",
 		Branch: "main",
@@ -320,7 +320,7 @@ func TestCrawl_OmitsAuthHeader_WhenTokenEmpty(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 
-	_, ch, err := githubrepo.NewAdapter(srv.URL).Crawl(context.Background(), config.SourceConfig{
+	_, ch, _, err := githubrepo.NewAdapter(srv.URL).Crawl(context.Background(), config.SourceConfig{
 		Type:   "github_repo",
 		Repo:   "o/r",
 		Branch: "main",
@@ -341,7 +341,7 @@ func TestCrawl_404_ReturnsNotFoundError(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 
-	_, _, err := githubrepo.NewAdapter(srv.URL).Crawl(context.Background(), config.SourceConfig{
+	_, _, _, err := githubrepo.NewAdapter(srv.URL).Crawl(context.Background(), config.SourceConfig{
 		Type:   "github_repo",
 		Repo:   "ghost/repo",
 		Branch: "main",
@@ -363,7 +363,7 @@ func TestCrawl_401_ReturnsUnauthorizedError(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 
-	_, _, err := githubrepo.NewAdapter(srv.URL).Crawl(context.Background(), config.SourceConfig{
+	_, _, _, err := githubrepo.NewAdapter(srv.URL).Crawl(context.Background(), config.SourceConfig{
 		Type:   "github_repo",
 		Repo:   "o/r",
 		Branch: "main",
@@ -382,7 +382,7 @@ func TestCrawl_403_ReturnsUnauthorizedError(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 
-	_, _, err := githubrepo.NewAdapter(srv.URL).Crawl(context.Background(), config.SourceConfig{
+	_, _, _, err := githubrepo.NewAdapter(srv.URL).Crawl(context.Background(), config.SourceConfig{
 		Type:   "github_repo",
 		Repo:   "o/r",
 		Branch: "main",
@@ -401,7 +401,7 @@ func TestCrawl_5xx_ReturnsGenericError(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 
-	_, _, err := githubrepo.NewAdapter(srv.URL).Crawl(context.Background(), config.SourceConfig{
+	_, _, _, err := githubrepo.NewAdapter(srv.URL).Crawl(context.Background(), config.SourceConfig{
 		Type:   "github_repo",
 		Repo:   "o/r",
 		Branch: "main",
@@ -425,7 +425,7 @@ func TestCrawl_BranchName_URLEscaped(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 
-	_, ch, err := githubrepo.NewAdapter(srv.URL).Crawl(context.Background(), config.SourceConfig{
+	_, ch, _, err := githubrepo.NewAdapter(srv.URL).Crawl(context.Background(), config.SourceConfig{
 		Type:   "github_repo",
 		Repo:   "o/r",
 		Branch: "feature/new-stuff",
@@ -450,7 +450,7 @@ func TestCrawl_ContextCancellation_ClosesChannel(t *testing.T) {
 	srv := tarballServer(t, tarball)
 
 	ctx, cancel := context.WithCancel(context.Background())
-	_, ch, err := githubrepo.NewAdapter(srv.URL).Crawl(ctx, config.SourceConfig{
+	_, ch, _, err := githubrepo.NewAdapter(srv.URL).Crawl(ctx, config.SourceConfig{
 		Type:   "github_repo",
 		Repo:   "o/r",
 		Branch: "main",
@@ -494,7 +494,7 @@ func TestCrawl_429_RetriesOnce(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 
-	_, ch, err := githubrepo.NewAdapter(srv.URL).Crawl(context.Background(), config.SourceConfig{
+	_, ch, _, err := githubrepo.NewAdapter(srv.URL).Crawl(context.Background(), config.SourceConfig{
 		Type:   "github_repo",
 		Repo:   "o/r",
 		Branch: "main",
@@ -514,7 +514,7 @@ func TestCrawl_429_RetriesOnce(t *testing.T) {
 func TestCrawl_IncludePath_RejectsTraversal(t *testing.T) {
 	a := githubrepo.NewAdapter("http://127.0.0.1:0") // URL unused — should error before HTTP
 
-	_, _, err := a.Crawl(context.Background(), config.SourceConfig{
+	_, _, _, err := a.Crawl(context.Background(), config.SourceConfig{
 		Type:        "github_repo",
 		Repo:        "o/r",
 		Branch:      "main",

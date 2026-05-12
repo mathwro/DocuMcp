@@ -79,7 +79,7 @@ func (c *Crawler) Crawl(ctx context.Context, src db.Source) error {
 		}
 	}
 
-	total, pages, err := a.Crawl(ctx, cfgSrc, src.ID)
+	total, pages, errCh, err := a.Crawl(ctx, cfgSrc, src.ID)
 	if err != nil {
 		return fmt.Errorf("crawl: %w", err)
 	}
@@ -112,7 +112,22 @@ func (c *Crawler) Crawl(ctx context.Context, src db.Source) error {
 			}
 		}
 	}
+	if err := terminalCrawlError(errCh); err != nil {
+		return err
+	}
 	return c.store.UpdateSourcePageCount(src.ID, count)
+}
+
+func terminalCrawlError(errCh <-chan error) error {
+	if errCh == nil {
+		return nil
+	}
+	for err := range errCh {
+		if err != nil {
+			return fmt.Errorf("crawl: %w", err)
+		}
+	}
+	return nil
 }
 
 // indexEmbedding generates and stores the embedding vector for a page.

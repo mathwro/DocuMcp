@@ -6,7 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
+	"unicode/utf8"
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -54,6 +56,7 @@ func toSourceInfo(s db.Source) sourceInfo {
 //   - Score is omitted — results are already ranked best-first; the raw BM25
 //     or RRF float is not interpretable and adds noise to the response.
 type searchResult struct {
+	ResultID   int      `json:"resultId"`
 	URL        string   `json:"url"`
 	Title      string   `json:"title"`
 	Snippet    string   `json:"snippet"`
@@ -78,15 +81,17 @@ func (s *Server) registerTools() {
 	s.server.AddTool(&sdkmcp.Tool{
 		Name: "search_docs",
 		Description: "Start here for any documentation question. Searches all indexed sources using " +
-			"hybrid BM25 + semantic search and returns up to 10 results ranked by relevance. Each " +
-			"result includes the source name, section path, and a short excerpt (~200 chars) centred " +
-			"on the matched terms. If an excerpt confirms the page is relevant, call get_page with " +
-			"that URL for the full content. Optionally restrict to a single source by name.",
+			"hybrid BM25 + semantic search and returns compact ranked evidence. If a snippet answers " +
+			"the question, answer directly and cite the URL. Only call get_page_excerpt or get_page " +
+			"when the snippet is insufficient. Defaults to 5 results with ~300-char snippets. " +
+			"Optionally restrict to a single source by name.",
 		InputSchema: json.RawMessage(`{
 			"type": "object",
 			"properties": {
 				"query":  {"type": "string", "description": "Search query"},
-				"source": {"type": "string", "description": "Optional source name to restrict search"}
+				"source": {"type": "string", "description": "Optional source name to restrict search"},
+				"limit": {"type": "integer", "description": "Maximum results to return (1-10, default 5)"},
+				"snippet_chars": {"type": "integer", "description": "Maximum snippet characters per result (80-500, default 300)"}
 			},
 			"required": ["query"]
 		}`),
@@ -112,9 +117,8 @@ func (s *Server) registerTools() {
 	s.server.AddTool(&sdkmcp.Tool{
 		Name: "get_page",
 		Description: "Retrieve the full content of a single documentation page by URL. Only call " +
-			"this after confirming relevance — use search_docs first to find candidate URLs and " +
-			"read their excerpts. Returns the complete page text, which may be large for reference " +
-			"or API pages.",
+			"this when compact search snippets and get_page_excerpt are insufficient. Returns the " +
+			"complete page text, which may be large for reference or API pages.",
 		InputSchema: json.RawMessage(`{
 			"type": "object",
 			"properties": {
@@ -123,6 +127,22 @@ func (s *Server) registerTools() {
 			"required": ["url"]
 		}`),
 	}, s.handleGetPage)
+
+	s.server.AddTool(&sdkmcp.Tool{
+		Name: "get_page_excerpt",
+		Description: "Retrieve a bounded excerpt from a documentation page by URL. Prefer this over " +
+			"get_page when search_docs found a relevant page but the snippet is not enough. If query " +
+			"is provided, the excerpt is centered near the first matching term.",
+		InputSchema: json.RawMessage(`{
+			"type": "object",
+			"properties": {
+				"url": {"type": "string", "description": "Page URL"},
+				"query": {"type": "string", "description": "Optional focus query for centering the excerpt"},
+				"max_chars": {"type": "integer", "description": "Maximum excerpt characters (80-12000, default 4000)"}
+			},
+			"required": ["url"]
+		}`),
+	}, s.handleGetPageExcerpt)
 }
 
 // toolError returns a CallToolResult that signals a tool-level error (not a
@@ -156,8 +176,10 @@ func (s *Server) handleListSources(_ context.Context, _ *sdkmcp.CallToolRequest)
 // handleSearchDocs handles the search_docs tool call.
 func (s *Server) handleSearchDocs(_ context.Context, req *sdkmcp.CallToolRequest) (*sdkmcp.CallToolResult, error) {
 	var args struct {
-		Query  string `json:"query"`
-		Source string `json:"source"`
+		Query        string `json:"query"`
+		Source       string `json:"source"`
+		Limit        int    `json:"limit"`
+		SnippetChars int    `json:"snippet_chars"`
 	}
 	if err := json.Unmarshal(req.Params.Arguments, &args); err != nil {
 		return toolError(fmt.Sprintf("parse arguments: %v", err))
@@ -166,7 +188,8 @@ func (s *Server) handleSearchDocs(_ context.Context, req *sdkmcp.CallToolRequest
 		return toolError("query is required")
 	}
 
-	const finalLimit = 10
+	finalLimit := clampInt(args.Limit, 5, 1, 10)
+	snippetChars := clampInt(args.SnippetChars, 300, 80, 500)
 	fetchLimit := finalLimit
 	if args.Source != "" {
 		fetchLimit = finalLimit * 10 // over-fetch so source filter has enough candidates
@@ -227,9 +250,10 @@ func (s *Server) handleSearchDocs(_ context.Context, req *sdkmcp.CallToolRequest
 	out := make([]searchResult, len(results))
 	for i, r := range results {
 		out[i] = searchResult{
+			ResultID:   i + 1,
 			URL:        r.URL,
 			Title:      r.Title,
-			Snippet:    r.Snippet,
+			Snippet:    truncateRunes(r.Snippet, snippetChars),
 			SourceName: sourceNames[r.SourceID],
 			Path:       r.Path,
 		}
@@ -313,4 +337,113 @@ func (s *Server) handleGetPage(_ context.Context, req *sdkmcp.CallToolRequest) (
 	return &sdkmcp.CallToolResult{
 		Content: []sdkmcp.Content{&sdkmcp.TextContent{Text: page.Content}},
 	}, nil
+}
+
+// handleGetPageExcerpt handles the get_page_excerpt tool call.
+func (s *Server) handleGetPageExcerpt(_ context.Context, req *sdkmcp.CallToolRequest) (*sdkmcp.CallToolResult, error) {
+	var args struct {
+		URL      string `json:"url"`
+		Query    string `json:"query"`
+		MaxChars int    `json:"max_chars"`
+	}
+	if err := json.Unmarshal(req.Params.Arguments, &args); err != nil {
+		return toolError(fmt.Sprintf("parse arguments: %v", err))
+	}
+	if args.URL == "" {
+		return toolError("url is required")
+	}
+
+	page, err := s.store.GetPageByURL(args.URL)
+	if err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			return toolError(fmt.Sprintf("page %q not found", args.URL))
+		}
+		return toolError(fmt.Sprintf("get page: %v", err))
+	}
+
+	maxChars := clampInt(args.MaxChars, 4000, 80, 12000)
+	excerpt := focusedExcerpt(page.Content, args.Query, maxChars)
+	return &sdkmcp.CallToolResult{
+		Content: []sdkmcp.Content{&sdkmcp.TextContent{Text: excerpt}},
+	}, nil
+}
+
+func clampInt(value, def, min, max int) int {
+	if value == 0 {
+		return def
+	}
+	if value < min {
+		return min
+	}
+	if value > max {
+		return max
+	}
+	return value
+}
+
+func truncateRunes(s string, maxChars int) string {
+	if maxChars <= 0 || utf8.RuneCountInString(s) <= maxChars {
+		return s
+	}
+	runes := []rune(s)
+	return string(runes[:maxChars]) + "..."
+}
+
+func focusedExcerpt(content, query string, maxChars int) string {
+	content = strings.TrimSpace(content)
+	if content == "" {
+		return ""
+	}
+	runes := []rune(content)
+	if len(runes) <= maxChars {
+		return content
+	}
+	idx := firstQueryIndex(content, query)
+	if idx < 0 {
+		return truncateRunes(content, maxChars)
+	}
+	start := idx - maxChars/3
+	return excerptWindow(runes, start, maxChars)
+}
+
+func excerptWindow(runes []rune, start, maxChars int) string {
+	if start < 0 {
+		start = 0
+	}
+	if start > len(runes)-maxChars {
+		start = len(runes) - maxChars
+	}
+	if start < 0 {
+		start = 0
+	}
+	prefix, suffix := "", ""
+	if start > 0 {
+		prefix = "..."
+	}
+	if start+maxChars < len(runes) {
+		suffix = "..."
+	}
+	budget := maxChars - len([]rune(prefix)) - len([]rune(suffix))
+	if budget < 0 {
+		budget = 0
+	}
+	end := start + budget
+	if end > len(runes) {
+		end = len(runes)
+	}
+	return prefix + string(runes[start:end]) + suffix
+}
+
+func firstQueryIndex(content, query string) int {
+	query = strings.TrimSpace(query)
+	if query == "" {
+		return -1
+	}
+	lowerContent := strings.ToLower(content)
+	for _, term := range strings.Fields(strings.ToLower(query)) {
+		if idx := strings.Index(lowerContent, term); idx >= 0 {
+			return utf8.RuneCountInString(content[:idx])
+		}
+	}
+	return -1
 }

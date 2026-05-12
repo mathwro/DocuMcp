@@ -1,4 +1,4 @@
-.PHONY: build test lint docker run clean init
+.PHONY: build bench bench-run test lint docker run clean init
 
 # Detect OS and architecture from the Go toolchain
 GOOS   := $(shell go env GOOS)
@@ -10,6 +10,13 @@ ifeq ($(GOOS),windows)
   BINARY_EXT := .exe
 endif
 BINARY := bin/documcp$(BINARY_EXT)
+BENCH_BINARY := bin/bench$(BINARY_EXT)
+BENCH_TASKS ?= docs/bench/codex-tasks.example.jsonl
+BENCH_MODE ?= both
+BENCH_RUNS ?= 1
+BENCH_DOCUMCP_URL ?= http://localhost:8080/mcp/http
+BENCH_OUT ?= bench-results.json
+BENCH_RAW_DIR ?= bench-events
 
 # Auto-detect container runtime: prefer podman if available, fall back to docker
 # `which` works on Linux, macOS, WSL, and Git Bash on Windows
@@ -20,6 +27,12 @@ COMPOSE_CMD := $(if $(_PODMAN_COMPOSE),podman-compose,$(CONTAINER_RUNTIME) compo
 
 build:
 	CGO_ENABLED=1 go build -tags sqlite_fts5 -o $(BINARY) ./cmd/documcp
+
+bench:
+	CGO_ENABLED=1 go build -tags sqlite_fts5 -o $(BENCH_BINARY) ./cmd/bench
+
+bench-run: bench
+	$(BENCH_BINARY) -tasks $(BENCH_TASKS) -mode $(BENCH_MODE) -runs $(BENCH_RUNS) -documcp-url $(BENCH_DOCUMCP_URL) -out $(BENCH_OUT) -raw-dir $(BENCH_RAW_DIR)
 
 test:
 	CGO_ENABLED=1 go test -tags sqlite_fts5 ./... -v -timeout 60s

@@ -5,6 +5,8 @@ config.yaml
 coverage.out
 coverage.html
 *.prof
+bench-results.json
+bench-events/
 
 # IDE / editor
 .vscode/

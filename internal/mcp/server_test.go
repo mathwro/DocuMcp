@@ -60,7 +60,7 @@ func TestStreamableHTTPHandlerListsTools(t *testing.T) {
 	for _, tool := range res.Tools {
 		got[tool.Name] = true
 	}
-	for _, name := range []string{"list_sources", "search_docs", "browse_source", "get_page"} {
+	for _, name := range []string{"list_sources", "search_docs", "browse_source", "get_page", "get_page_excerpt"} {
 		if !got[name] {
 			t.Fatalf("expected streamable handler to expose %q; got %#v", name, got)
 		}
@@ -381,5 +381,146 @@ func TestSearchDocs_ResultDTO(t *testing.T) {
 	}
 	if r["snippet"] == nil {
 		t.Error("expected 'snippet' field in result")
+	}
+	if r["resultId"] == nil {
+		t.Error("expected 'resultId' field in result")
+	}
+}
+
+func TestSearchDocs_DefaultLimitAndSnippetChars(t *testing.T) {
+	store := openTestDB(t)
+
+	srcID, err := store.InsertSource(db.Source{Name: "Docs", Type: "web", URL: "https://example.com"})
+	if err != nil {
+		t.Fatalf("insert source: %v", err)
+	}
+	for i := 0; i < 7; i++ {
+		if _, err := store.UpsertPage(db.Page{
+			SourceID: srcID,
+			URL:      "https://example.com/page-" + string(rune('a'+i)),
+			Title:    "Page",
+			Content:  "needle " + strings.Repeat("long content ", 80),
+			Path:     []string{"Reference"},
+		}); err != nil {
+			t.Fatalf("upsert page %d: %v", i, err)
+		}
+	}
+
+	srv := mcpserver.NewServer(store, nil)
+	cs := connectTestClient(t, srv)
+	ctx := context.Background()
+	res, err := cs.CallTool(ctx, &sdkmcp.CallToolParams{
+		Name:      "search_docs",
+		Arguments: map[string]any{"query": "needle"},
+	})
+	if err != nil {
+		t.Fatalf("search_docs call: %v", err)
+	}
+	if res.IsError {
+		t.Fatalf("search_docs returned error: %v", res.Content)
+	}
+
+	var results []map[string]any
+	text := res.Content[0].(*sdkmcp.TextContent).Text
+	if err := json.Unmarshal([]byte(text), &results); err != nil {
+		t.Fatalf("unmarshal results: %v", err)
+	}
+	if len(results) != 5 {
+		t.Fatalf("expected default limit of 5 results, got %d", len(results))
+	}
+	for _, r := range results {
+		snippet, _ := r["snippet"].(string)
+		if len([]rune(snippet)) > 303 {
+			t.Fatalf("expected default snippet <=303 chars, got %d: %q", len([]rune(snippet)), snippet)
+		}
+	}
+}
+
+func TestSearchDocs_CustomLimitAndSnippetChars(t *testing.T) {
+	store := openTestDB(t)
+
+	srcID, err := store.InsertSource(db.Source{Name: "Docs", Type: "web", URL: "https://example.com"})
+	if err != nil {
+		t.Fatalf("insert source: %v", err)
+	}
+	for i := 0; i < 4; i++ {
+		if _, err := store.UpsertPage(db.Page{
+			SourceID: srcID,
+			URL:      "https://example.com/custom-" + string(rune('a'+i)),
+			Title:    "Custom",
+			Content:  "needle " + strings.Repeat("custom content ", 50),
+			Path:     []string{"Reference"},
+		}); err != nil {
+			t.Fatalf("upsert page %d: %v", i, err)
+		}
+	}
+
+	srv := mcpserver.NewServer(store, nil)
+	cs := connectTestClient(t, srv)
+	ctx := context.Background()
+	res, err := cs.CallTool(ctx, &sdkmcp.CallToolParams{
+		Name:      "search_docs",
+		Arguments: map[string]any{"query": "needle", "limit": 2, "snippet_chars": 80},
+	})
+	if err != nil {
+		t.Fatalf("search_docs call: %v", err)
+	}
+	if res.IsError {
+		t.Fatalf("search_docs returned error: %v", res.Content)
+	}
+
+	var results []map[string]any
+	text := res.Content[0].(*sdkmcp.TextContent).Text
+	if err := json.Unmarshal([]byte(text), &results); err != nil {
+		t.Fatalf("unmarshal results: %v", err)
+	}
+	if len(results) != 2 {
+		t.Fatalf("expected custom limit of 2 results, got %d", len(results))
+	}
+	for _, r := range results {
+		snippet, _ := r["snippet"].(string)
+		if len([]rune(snippet)) > 83 {
+			t.Fatalf("expected custom snippet <=83 chars, got %d: %q", len([]rune(snippet)), snippet)
+		}
+	}
+}
+
+func TestGetPageExcerpt(t *testing.T) {
+	store := openTestDB(t)
+
+	srcID, err := store.InsertSource(db.Source{Name: "Docs", Type: "web", URL: "https://example.com"})
+	if err != nil {
+		t.Fatalf("insert source: %v", err)
+	}
+	content := "opening " + strings.Repeat("alpha ", 80) + "target phrase " + strings.Repeat("beta ", 80)
+	if _, err := store.UpsertPage(db.Page{
+		SourceID: srcID,
+		URL:      "https://example.com/long",
+		Title:    "Long Page",
+		Content:  content,
+		Path:     []string{"Guide"},
+	}); err != nil {
+		t.Fatalf("upsert page: %v", err)
+	}
+
+	srv := mcpserver.NewServer(store, nil)
+	cs := connectTestClient(t, srv)
+	ctx := context.Background()
+	res, err := cs.CallTool(ctx, &sdkmcp.CallToolParams{
+		Name:      "get_page_excerpt",
+		Arguments: map[string]any{"url": "https://example.com/long", "query": "target", "max_chars": 120},
+	})
+	if err != nil {
+		t.Fatalf("get_page_excerpt call: %v", err)
+	}
+	if res.IsError {
+		t.Fatalf("get_page_excerpt returned error: %v", res.Content)
+	}
+	text := res.Content[0].(*sdkmcp.TextContent).Text
+	if !strings.Contains(text, "target phrase") {
+		t.Fatalf("expected focused excerpt to include target phrase, got %q", text)
+	}
+	if len([]rune(text)) > 123 {
+		t.Fatalf("expected bounded excerpt <=123 chars, got %d", len([]rune(text)))
 	}
 }

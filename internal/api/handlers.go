@@ -99,7 +99,8 @@ func parseID(w http.ResponseWriter, r *http.Request) (int64, bool) {
 // sourceResponse wraps db.Source with a server-side Crawling flag.
 type sourceResponse struct {
 	db.Source
-	Crawling bool `json:"Crawling"`
+	Crawling   bool   `json:"Crawling"`
+	CrawlError string `json:"CrawlError,omitempty"`
 }
 
 // listSources handles GET /api/sources.
@@ -113,7 +114,11 @@ func (s *Server) listSources(w http.ResponseWriter, r *http.Request) {
 	s.crawlingMu.Lock()
 	result := make([]sourceResponse, len(sources))
 	for i, src := range sources {
-		result[i] = sourceResponse{Source: src, Crawling: s.crawlingIDs[src.ID]}
+		result[i] = sourceResponse{
+			Source:     src,
+			Crawling:   s.crawlingIDs[src.ID],
+			CrawlError: s.crawlErrors[src.ID],
+		}
 	}
 	s.crawlingMu.Unlock()
 	writeJSON(w, http.StatusOK, result)
@@ -293,19 +298,59 @@ func (s *Server) triggerCrawl(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		s.crawlingIDs[id] = true
+		delete(s.crawlErrors, id)
+		crawlCtx, cancel := context.WithCancel(s.ctx)
+		s.crawlCancels[id] = cancel
 		s.crawlingMu.Unlock()
-		crawlCtx := s.ctx
 		go func() {
+			defer cancel()
 			if err := s.crawler.Crawl(crawlCtx, *src); err != nil {
 				slog.Error("background crawl failed", "source_id", id, "err", err)
+				s.crawlingMu.Lock()
+				if s.crawlErrors[id] == "" {
+					s.crawlErrors[id] = err.Error()
+				}
+				s.crawlingMu.Unlock()
 			}
 			s.crawlingMu.Lock()
 			delete(s.crawlingIDs, id)
+			delete(s.crawlCancels, id)
 			s.crawlingMu.Unlock()
 		}()
 	}
 
 	writeJSON(w, http.StatusAccepted, map[string]string{"status": "crawl started"})
+}
+
+// stopCrawl handles DELETE /api/sources/{id}/crawl.
+// It cancels an in-flight crawl and leaves a visible status for the UI.
+func (s *Server) stopCrawl(w http.ResponseWriter, r *http.Request) {
+	id, ok := parseID(w, r)
+	if !ok {
+		return
+	}
+
+	if _, err := s.store.GetSource(id); err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			writeError(w, http.StatusNotFound, "source not found")
+			return
+		}
+		internalError(w, "get source", err)
+		return
+	}
+
+	s.crawlingMu.Lock()
+	cancel := s.crawlCancels[id]
+	if cancel == nil || !s.crawlingIDs[id] {
+		s.crawlingMu.Unlock()
+		writeError(w, http.StatusConflict, "no crawl in progress for this source")
+		return
+	}
+	s.crawlErrors[id] = "crawl stopped by user"
+	s.crawlingMu.Unlock()
+
+	cancel()
+	writeJSON(w, http.StatusAccepted, map[string]string{"status": "crawl stop requested"})
 }
 
 // searchHandler handles GET /api/search?q=<query>.

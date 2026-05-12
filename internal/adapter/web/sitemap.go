@@ -5,15 +5,10 @@ import (
 	"encoding/xml"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strconv"
 	"time"
 )
-
-type urlSet struct {
-	URLs []struct {
-		Loc string `xml:"loc"`
-	} `xml:"url"`
-}
 
 // ParseSitemap fetches and parses an XML sitemap, returning all URLs.
 // If client is nil, http.DefaultClient is used.
@@ -21,6 +16,13 @@ type urlSet struct {
 func ParseSitemap(ctx context.Context, sitemapURL string, client *http.Client) ([]string, error) {
 	if client == nil {
 		client = http.DefaultClient
+	}
+	return parseSitemap(ctx, sitemapURL, client, 0)
+}
+
+func parseSitemap(ctx context.Context, sitemapURL string, client *http.Client, depth int) ([]string, error) {
+	if depth > 3 {
+		return nil, fmt.Errorf("sitemap index nesting too deep")
 	}
 	doRequest := func() (*http.Response, error) {
 		req, err := http.NewRequestWithContext(ctx, "GET", sitemapURL, nil)
@@ -62,13 +64,49 @@ func ParseSitemap(ctx context.Context, sitemapURL string, client *http.Client) (
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("sitemap returned %d", resp.StatusCode)
 	}
-	var us urlSet
-	if err := xml.NewDecoder(resp.Body).Decode(&us); err != nil {
+	var doc struct {
+		XMLName xml.Name `xml:""`
+		URLs    []struct {
+			Loc string `xml:"loc"`
+		} `xml:"url"`
+		Sitemaps []struct {
+			Loc string `xml:"loc"`
+		} `xml:"sitemap"`
+	}
+	if err := xml.NewDecoder(resp.Body).Decode(&doc); err != nil {
 		return nil, fmt.Errorf("parse sitemap: %w", err)
 	}
-	urls := make([]string, len(us.URLs))
-	for i, u := range us.URLs {
+	if len(doc.Sitemaps) > 0 {
+		return parseSitemapIndex(ctx, sitemapURL, client, doc.Sitemaps, depth)
+	}
+	urls := make([]string, len(doc.URLs))
+	for i, u := range doc.URLs {
 		urls[i] = u.Loc
+	}
+	return urls, nil
+}
+
+func parseSitemapIndex(ctx context.Context, sitemapURL string, client *http.Client, sitemaps []struct {
+	Loc string `xml:"loc"`
+}, depth int) ([]string, error) {
+	base, err := url.Parse(sitemapURL)
+	if err != nil {
+		return nil, fmt.Errorf("parse sitemap URL: %w", err)
+	}
+	urls := []string{}
+	for _, sm := range sitemaps {
+		child, err := url.Parse(sm.Loc)
+		if err != nil {
+			continue
+		}
+		if child.Scheme != base.Scheme || child.Host != base.Host {
+			continue
+		}
+		childURLs, err := parseSitemap(ctx, sm.Loc, client, depth+1)
+		if err != nil {
+			continue
+		}
+		urls = append(urls, childURLs...)
 	}
 	return urls, nil
 }

@@ -113,13 +113,15 @@
               <strong x-text="src.Name"></strong>
               <span class="badge" :class="isCrawling(src) ? 'badge-crawling' : (src.PageCount > 0 ? 'badge-ok' : 'badge-pending')"
                     x-text="isCrawling(src) ? '⟳ ' + src.PageCount + (src.CrawlTotal > 0 ? ' / ' + src.CrawlTotal : '') + ' pages' : src.PageCount + ' pages'"></span>
+              <span class="badge badge-error" x-show="src.CrawlError">Stopped</span>
               <span class="badge badge-pending" x-text="sourceTypeName(src.Type)"></span>
               <span class="badge" :class="src.Origin === 'config' ? 'badge-config' : 'badge-ui'" x-text="sourceOriginName(src.Origin)"></span>
             </div>
             <div class="actions">
               <button class="secondary" @click="connectAuth(src.ID, src.Type, src.Name)" x-show="src.Type !== 'web'">Connect</button>
               <button class="secondary" @click="startEditSource(src)" x-show="editingSourceId !== src.ID">Edit</button>
-              <button class="secondary" @click="crawlNow(src.ID)" :disabled="isCrawling(src)">Crawl Now</button>
+              <button class="secondary" @click="crawlNow(src.ID)" x-show="!isCrawling(src)">Crawl Now</button>
+              <button class="danger" @click="stopCrawl(src.ID)" x-show="isCrawling(src)">Stop</button>
               <button class="danger" @click="deleteSource(src.ID)">Remove</button>
             </div>
           </div>
@@ -177,6 +179,7 @@
             <div class="muted" x-show="src.Origin !== 'config'">Added through the UI</div>
             <div class="muted" x-show="src.LastCrawled" x-text="'Last crawled: ' + formatDate(src.LastCrawled)"></div>
             <div class="muted" x-show="!src.LastCrawled && !isCrawling(src)">Never crawled</div>
+            <div class="crawl-error" x-show="src.CrawlError" x-text="'Crawl stopped: ' + src.CrawlError"></div>
           </div>
         </div>
       </template>

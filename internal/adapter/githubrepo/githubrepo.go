@@ -45,7 +45,7 @@ func NewAdapter(baseURL string) *Adapter {
 
 func (a *Adapter) NeedsAuth(src config.SourceConfig) bool { return true }
 
-func (a *Adapter) Crawl(ctx context.Context, src config.SourceConfig, sourceID int64) (int, <-chan db.Page, error) {
+func (a *Adapter) Crawl(ctx context.Context, src config.SourceConfig, sourceID int64) (int, <-chan db.Page, <-chan error, error) {
 	branch := src.Branch
 	if branch == "" {
 		branch = "main"
@@ -53,32 +53,34 @@ func (a *Adapter) Crawl(ctx context.Context, src config.SourceConfig, sourceID i
 	rawIncludePaths := sourcepaths.Normalize(src.IncludePath, src.IncludePaths)
 	for _, includePath := range rawIncludePaths {
 		if err := validateIncludePath(includePath); err != nil {
-			return 0, nil, err
+			return 0, nil, nil, err
 		}
 	}
 	includePaths := normalizeIncludePaths(rawIncludePaths)
 
 	resp, err := a.fetchTarball(ctx, src, branch)
 	if err != nil {
-		return 0, nil, err
+		return 0, nil, nil, err
 	}
 	switch resp.StatusCode {
 	case http.StatusOK:
 		// success, continue
 	case http.StatusNotFound:
 		resp.Body.Close()
-		return 0, nil, fmt.Errorf("github_repo: repo or branch not found: %s@%s", src.Repo, branch)
+		return 0, nil, nil, fmt.Errorf("github_repo: repo or branch not found: %s@%s", src.Repo, branch)
 	case http.StatusUnauthorized, http.StatusForbidden:
 		resp.Body.Close()
-		return 0, nil, fmt.Errorf("github_repo: unauthorized — token missing or lacks repo scope (status %d)", resp.StatusCode)
+		return 0, nil, nil, fmt.Errorf("github_repo: unauthorized — token missing or lacks repo scope (status %d)", resp.StatusCode)
 	default:
 		resp.Body.Close()
-		return 0, nil, fmt.Errorf("github_repo: tarball status %d for %s@%s", resp.StatusCode, src.Repo, branch)
+		return 0, nil, nil, fmt.Errorf("github_repo: tarball status %d for %s@%s", resp.StatusCode, src.Repo, branch)
 	}
 
 	ch := make(chan db.Page, 10)
+	errCh := make(chan error)
 	go func() {
 		defer close(ch)
+		defer close(errCh)
 		defer resp.Body.Close()
 
 		gz, err := gzip.NewReader(resp.Body)
@@ -137,7 +139,7 @@ func (a *Adapter) Crawl(ctx context.Context, src config.SourceConfig, sourceID i
 			}
 		}
 	}()
-	return 0, ch, nil
+	return 0, ch, errCh, nil
 }
 
 // fetchTarball fetches the tarball for the given branch, retrying once on 429.

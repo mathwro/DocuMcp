@@ -37,7 +37,7 @@ func TestGitHubAdapter_CrawlsWikiPages(t *testing.T) {
 	defer srv.Close()
 
 	a := github.NewAdapter(srv.URL)
-	_, ch, err := a.Crawl(context.Background(), config.SourceConfig{
+	_, ch, _, err := a.Crawl(context.Background(), config.SourceConfig{
 		Type: "github_wiki",
 		Repo: "myorg/myrepo",
 	}, 42)
